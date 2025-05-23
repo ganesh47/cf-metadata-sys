@@ -429,6 +429,7 @@ export async function createEdge(request: Request, env: Env, logger: Logger): Pr
 		throw error;
 	}
 }
+// sonarignore: typescript:S107
 async function traverseNode(
 	env: Env,
 	nodeId: string,

@@ -23,11 +23,10 @@
 		"lint:fix": "eslint src/**/*.ts --fix",
 		"type-check": "tsc --noEmit",
 		"ci:dev": "npm ci && npm run lint && npm run type-check && npm run test:dev",
-		"ci:stage": "npm ci && npm run typegen:stage && npm run lint && npm run type-check && npm run test:coverage:stage",
-		"ci:prod": "npm ci && npm run typegen:stage && npm run lint && npm run type-check && echo 'No tests run on production'",
-		"prebuild": "npm run typegen",
+		"ci:stage": "npm ci && npm run lint && npm run type-check && npm run test:coverage:stage",
+		"ci:prod": "npm ci && npm run lint && npm run type-check && echo 'No tests run on production'",
 		"preinstall": "npx only-allow npm",
-		"prepare": "npm run type-check"
+		"prepare": "npm run typegen && npm run type-check"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.19",
