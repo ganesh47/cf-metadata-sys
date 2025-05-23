@@ -150,7 +150,7 @@ async function handleRequest(path: string, method: string, request: Request, env
 
 		if (handlers && handlers[method]) {
 			// Check if route is public or requires authentication
-			if (publicRoutes!= null && publicRoutes.includes(path)) {
+			if (publicRoutes?.includes(path)) {
 				return await handlers[method](request, env, logger, params);
 			} else {
 				// Apply authentication middleware to protected routes

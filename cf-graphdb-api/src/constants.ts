@@ -9,7 +9,7 @@ declare const process: {
 		NODE_ENV?: string;
 	}
 };
-const isCI =  typeof process !== 'undefined' && process.env ?
+const isCI =  process?.env ?
 	process.env.CI === 'true' ||
 	process.env.GITHUB_ACTIONS === 'true' ||
 	process.env.GITLAB_CI === 'true' ||
