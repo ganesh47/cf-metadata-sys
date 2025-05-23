@@ -8,6 +8,7 @@ import {
 import {exportMetadata, importMetadata} from "./graph/ops";
 import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/node";
 import {createEdge, getEdges} from "./graph/edge";
+import type { ExecutionContext } from '@cloudflare/workers-types';
 
 // Define route handler interface
 type RouteHandler = (request: Request, env: Env, logger: Logger, params?: Record<string, string>) => Promise<Response>;
