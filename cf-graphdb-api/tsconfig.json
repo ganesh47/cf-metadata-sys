@@ -42,5 +42,5 @@
 		]
 	},
 	"exclude": ["test"],
-	"include": ["worker-configuration.d.ts", "src/**/*.ts", "*.ts","vitest.config.mts", "../worker-configuration.d.ts"]
+	"include": ["worker-configuration.d.ts", "src/**/*.ts", "*.ts","vitest.config.mts"]
 }

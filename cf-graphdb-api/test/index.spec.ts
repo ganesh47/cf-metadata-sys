@@ -555,7 +555,7 @@ describe('GraphDB Worker Tests', () => {
 						type: 'user',
 						properties: {name: 'Alice', role: 'admin'}
 					})
-				}).then(r => r.json<any>()),
+				}).then((r:any) => r.json() as Promise<any>),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
@@ -563,7 +563,7 @@ describe('GraphDB Worker Tests', () => {
 						type: 'user',
 						properties: {name: 'Bob', role: 'user'}
 					})
-				}).then(r => r.json<any>()),
+				}).then((r:any) => r.json()),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
@@ -571,7 +571,7 @@ describe('GraphDB Worker Tests', () => {
 						type: 'document',
 						properties: {title: 'Important Doc'}
 					})
-				}).then(r => r.json<any>())
+				}).then((r:any) => r.json())
 			]);
 
 			// Create relationships
@@ -796,8 +796,7 @@ describe('GraphDB Worker Tests', () => {
 			);
 
 			const responses = await Promise.all(requests);
-
-			responses.forEach(response => {
+			responses.forEach((response:any) => {
 				expect(response.status).toBe(200);
 			});
 
