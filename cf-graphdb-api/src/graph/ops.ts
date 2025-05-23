@@ -100,14 +100,14 @@ export async function exportMetadata(env: Env, logger: Logger): Promise<Response
 		const nodesResult = await env.GRAPH_DB.prepare(`SELECT *
 														FROM ${NODES_TABLE}`).all();
 		logger.performance('export_nodes_query', Date.now() - nodesStart, {
-			nodeCount: nodesResult.results?.length || 0
+			nodeCount: nodesResult.results?.length ?? 0
 		});
 
 		const edgesStart = Date.now();
 		const edgesResult = await env.GRAPH_DB.prepare(`SELECT *
 														FROM ${EDGES_TABLE}`).all();
 		logger.performance('export_edges_query', Date.now() - edgesStart, {
-			edgeCount: edgesResult.results?.length || 0
+			edgeCount: edgesResult.results?.length ?? 0
 		});
 
 		const exportData = {
@@ -119,7 +119,7 @@ export async function exportMetadata(env: Env, logger: Logger): Promise<Response
 				properties: JSON.parse(row.properties),
 				created_at: row.created_at,
 				updated_at: row.updated_at
-			})) || [],
+			})) ?? [],
 			edges: edgesResult.results?.map((row: any) => ({
 				id: row.id,
 				from_node: row.from_node,
@@ -127,7 +127,7 @@ export async function exportMetadata(env: Env, logger: Logger): Promise<Response
 				relationship_type: row.relationship_type,
 				properties: JSON.parse(row.properties),
 				created_at: row.created_at
-			})) || []
+			})) ?? []
 		};
 
 		// Store in R2 for backup
