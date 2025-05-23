@@ -4,7 +4,8 @@ export default defineWorkersConfig({
 	test: {
 		environmentOptions:{
 			bindings: {
-				TEST_TOKEN: process.env.TEST_TOKEN
+				JWT_SECRET: process.env.JWT_SECRET,
+
 			}
 		},
 		poolOptions: {

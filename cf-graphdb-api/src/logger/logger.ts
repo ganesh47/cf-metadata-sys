@@ -6,7 +6,7 @@ const shouldLog = (logLevel: string, level: 'debug' | 'performance' | 'info' | '
 };
 
 export class Logger {
-	private context: TraceContext;
+	context: TraceContext;
 	private logLevel: string;
 
 	constructor(context: TraceContext, logLevel: string) {

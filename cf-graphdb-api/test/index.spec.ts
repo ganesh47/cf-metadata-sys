@@ -1,11 +1,12 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+import {afterAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData} from './setup';
+import {createJwt} from "./auth.spec";
 
-describe('/metadata API Worker Tests', () => {
+describe('/metadata API Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = eenv.TEST_TOKEN;
+	const validToken = await createJwt(eenv);
 	const importData = {
 		nodes: [
 			{
@@ -49,15 +50,6 @@ describe('/metadata API Worker Tests', () => {
 	});
 
 	describe('Metadata Operations', () => {
-
-		beforeAll(async () => {
-			// Add the token to AUTH_KV
-			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
-		})
-		afterAll(async () => {
-			await eenv.AUTH_KV.delete(`token:${validToken}`);
-		})
-
 		it('should import metadata', async () => {
 
 			const response = await SELF.fetch('http://localhost/metadata/import', {
@@ -72,7 +64,7 @@ describe('/metadata API Worker Tests', () => {
 			expect(result.imported_nodes).toBe(2);
 			expect(result.imported_edges).toBe(2);
 
-			// Verify imported node exists
+			// Verify the imported node exists
 			const nodeResponse = await SELF.fetch('http://localhost/nodes/import-test-1', {
 				headers: {
 					'Content-Type': 'application/json',
@@ -116,13 +108,6 @@ describe('/metadata API Worker Tests', () => {
 	});
 
 	describe('Error Handling', () => {
-		beforeAll(async () => {
-			// Add the token to AUTH_KV
-			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
-		})
-		afterAll(async () => {
-			await eenv.AUTH_KV.delete(`token:${validToken}`);
-		})
 		it('should handle invalid JSON in request body', async () => {
 			const response = await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
@@ -158,13 +143,6 @@ describe('/metadata API Worker Tests', () => {
 	});
 
 	describe('Performance and Logging', () => {
-		beforeAll(async () => {
-			// Add the token to AUTH_KV
-			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
-		})
-		afterAll(async () => {
-			await eenv.AUTH_KV.delete(`token:${validToken}`);
-		})
 		it('should include request ID in responses', async () => {
 			const response = await SELF.fetch('http://localhost/nodes', {
 				headers: {
@@ -191,7 +169,7 @@ describe('/metadata API Worker Tests', () => {
 			);
 
 			const responses = await Promise.all(requests);
-			responses.forEach((response:any) => {
+			responses.forEach((response: any) => {
 				expect(response.status).toBe(200);
 			});
 

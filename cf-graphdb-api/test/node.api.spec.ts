@@ -1,12 +1,13 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+import {afterAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData} from './setup';
 import {NODES_TABLE} from "../src/constants";
+import {createJwt} from "./auth.spec";
 
-describe('/node API GraphDB  Worker Tests', () => {
+describe('/node API GraphDB  Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = eenv.TEST_TOKEN;
+	const validToken = await createJwt(eenv);
 	// Run once after all tests complete
 	afterAll(async () => {
 		await cleanAllData();
@@ -15,15 +16,6 @@ describe('/node API GraphDB  Worker Tests', () => {
 
 	// Your existing test suites...
 	describe('Node Operations', () => {
-
-		beforeAll(async () => {
-			// Add the token to AUTH_KV
-			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
-		})
-		afterAll(async () => {
-			await eenv.AUTH_KV.delete(`token:${validToken}`);
-		})
-
 		it('should create a new node', async () => {
 			const nodeData = {
 				type: 'user',

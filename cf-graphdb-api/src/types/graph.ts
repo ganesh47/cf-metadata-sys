@@ -1,3 +1,5 @@
+import {D1Database, DurableObjectNamespace, KVNamespace, R2Bucket } from "@cloudflare/workers-types";
+
 export interface GraphEdge {
 	id: string;
 	from_node: string;
@@ -7,7 +9,7 @@ export interface GraphEdge {
 	created_at: string;
 }
 export interface Env {
-	AUTH_KV: Map<string,string>;
+	JWT_SECRET: string;
 	LOG_LEVEL: string;
 	GRAPH_KV: KVNamespace;
 	GRAPH_BUCKET: R2Bucket;

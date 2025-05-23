@@ -4,8 +4,32 @@ import {env, SELF} from 'cloudflare:test';
 import {cleanAllData} from './setup';
 import {DB_VERSION, EDGES_TABLE, generateTimestampVersion, NODES_TABLE} from "../src/constants";
 import {initializeDatabase} from "../src/d1/initDb";
-import {TraceContext} from "../src/types/graph";
+import {Env, TraceContext} from "../src/types/graph";
 import {Logger} from "../src/logger/logger";
+import {SignJWT} from 'jose';
+import {TextEncoder} from 'util';
+
+export async function createJwt(eenv:Env) {
+	const secret = eenv.JWT_SECRET;
+	expect(secret).toBeDefined();
+
+	// Create the secret key from the JWT_SECRET
+	const secretKey = new TextEncoder().encode(secret);
+
+	// Create a payload with user data
+	const payload = {
+		id: "1234",
+		email: "test@example.com"
+	};
+
+	// Sign a new JWT with the secret and payload
+	return await new SignJWT(payload)
+		.setProtectedHeader({alg: 'HS256'})
+		.setSubject(payload.id)          // Set subject to user ID
+		.setIssuedAt()                   // Set issued at time to now
+		.setExpirationTime('1h')         // Token expires in 1 hour
+		.sign(secretKey);
+}
 
 describe('Auth GraphDB Worker Tests', () => {
 	afterAll(async () => {
@@ -23,8 +47,8 @@ describe('Auth GraphDB Worker Tests', () => {
 
 			// Verify the response is an Unauthorized error
 			expect(response.status).toBe(401);
-			const responseText = await response.text();
-			expect(responseText).toContain('Unauthorized: Missing authentication token');
+			const responseMsg = await response.json();
+			expect(responseMsg.message).toContain('Unauthorized: Missing authentication token');
 		});
 
 		it('should return 401 when an invalid authentication token is provided', async () => {
@@ -44,12 +68,13 @@ describe('Auth GraphDB Worker Tests', () => {
 		});
 
 		it('should allow access when a valid authentication token is provided', async () => {
-			// Mock the token validation by adding a valid token to the KV store
-			const eenv = env as any
-			const validToken = eenv.TEST_TOKEN;
-			// Add the token to AUTH_KV
-			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
-			// Try to access a protected route with a valid token
+			// Cast env to access test properties
+			const eenv = env as any;
+
+			// Get the JWT_SECRET from environment
+			const validToken = await createJwt(eenv);
+
+			// Try to access a protected route with the valid token
 			const response = await SELF.fetch('http://localhost/nodes', {
 				method: 'GET',
 				headers: {
@@ -57,10 +82,9 @@ describe('Auth GraphDB Worker Tests', () => {
 					'Authorization': `Bearer ${validToken}`
 				}
 			});
+
 			// Verify the response is successful
 			expect(response.status).toBe(200);
-			// Clean up the test token
-			await eenv.AUTH_KV.delete(`token:${validToken}`);
 		});
 	});
 	describe('Database version', () => {

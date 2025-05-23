@@ -32,6 +32,8 @@ jobs:
           cache-dependency-path: 'cf-graphdb-api/package-lock.json'
       - name: Stage CI
         run: npm run ci:stage
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
       - name: Upload test coverage
         uses: actions/upload-artifact@v4
         with:

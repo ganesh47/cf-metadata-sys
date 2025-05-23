@@ -8,10 +8,30 @@ import {
 import {exportMetadata, importMetadata} from "./graph/ops";
 import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/node";
 import {createEdge, getEdges} from "./graph/edge";
-import type { ExecutionContext } from '@cloudflare/workers-types';
+import type {ExecutionContext} from '@cloudflare/workers-types';
+import { jwtVerify } from 'jose';
+import { TextEncoder } from 'util';
 
-// Define route handler interface
-type RouteHandler = (request: Request, env: Env, logger: Logger, params?: Record<string, string>) => Promise<Response>;
+// Define user context interface
+interface UserContext {
+	id: string;
+	email: string;
+
+	[key: string]: unknown;
+}
+
+// Extend TraceContext to include user information
+interface AuthenticatedTraceContext extends TraceContext {
+	user?: UserContext;
+}
+
+// Define route handler interface with updated context
+type RouteHandler = (
+	request: Request,
+	env: Env,
+	logger: Logger,
+	params?: Record<string, string>
+) => Promise<Response>;
 
 // Define middleware type
 type Middleware = (
@@ -21,56 +41,131 @@ type Middleware = (
 	next: (request: Request) => Promise<Response>
 ) => Promise<Response>;
 
-// Authentication middleware
+// JWT validation using jose library with JWT_SECRET
+async function validateJwt(token: string, env: Env, logger: Logger): Promise<{
+  valid: boolean;
+  user: { id: string, email: string } | null;
+  error?: string;
+}> {
+  try {
+    // Get the JWT_SECRET from environment
+    const secret = env.JWT_SECRET;
+    if (!secret) {
+      logger.error('JWT_SECRET not configured');
+      return { valid: false, user: null, error: 'JWT_SECRET not configured' };
+    }
+
+    // Convert the secret to Uint8Array (required by jose)
+    const secretKey = new TextEncoder().encode(secret);
+
+    // Verify the JWT with the secret
+    const { payload } = await jwtVerify(
+      token,
+      secretKey,
+      {
+        // Optional: Add additional verification if needed
+        clockTolerance: 5, // 5 seconds tolerance for clock skew
+      }
+    );
+
+    // Extract only the needed user information
+    const user = {
+      id: payload.sub ?? '',
+      email: payload.email as string ?? ''
+    };
+
+    // Validate that required fields exist
+    if (!user.id || !user.email) {
+      logger.warn('JWT missing required user fields', {
+        hasId: !!user.id,
+        hasEmail: !!user.email
+      });
+      return {
+        valid: false,
+        user: null,
+        error: 'JWT payload missing required user fields'
+      };
+    }
+
+    logger.debug('JWT verified successfully', { userId: user.id });
+    return { valid: true, user };
+
+  } catch (error: any) {
+    logger.error('JWT verification failed', { error: error.message });
+    return {
+      valid: false,
+      user: null,
+      error: error.message
+    };
+  }
+}
+
+// Authentication middleware with proper JWT validation
 async function authenticate(
-	request: Request,
-	env: Env,
-	logger: Logger,
-	next: (request: Request) => Promise<Response>
+  request: Request,
+  env: Env,
+  logger: Logger,
+  next: (request: Request) => Promise<Response>
 ): Promise<Response> {
-	const authHeader = request.headers.get('Authorization');
+  const authHeader = request.headers.get('Authorization');
 
-	if (!authHeader) {
-		logger.warn('Authentication failed: Missing Authorization header');
-		return new Response('Unauthorized: Missing authentication token', {status: 401});
-	}
+  if (!authHeader) {
+    logger.warn('Authentication failed: Missing Authorization header');
+    return new Response(JSON.stringify({message:'Unauthorized: Missing authentication token'}), { status: 401 });
+  }
 
-	try {
-		// Extract token from Authorization header (Bearer token)
-		const token = authHeader.startsWith('Bearer ')
-			? authHeader.slice(7)
-			: authHeader;
+  try {
+    // Extract token from Authorization header (Bearer token)
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
 
-		// Validate token (example implementation - replace with your actual auth logic)
-		const isValid = await validateToken(token, env, logger);
+    // Validate the JWT with proper signature verification
+    const { valid, user, error } = await validateJwt(token, env, logger);
 
-		if (!isValid) {
-			logger.warn('Authentication failed: Invalid token', {token: token.slice(0, 10) + '...'});
-			return new Response('Unauthorized: Invalid authentication token', {status: 401});
-		}
 
-		logger.debug('Authentication successful');
-		return await next(request);
-	} catch (error) {
-		logger.error('Authentication error', error);
-		return new Response('Authentication error', {status: 500});
-	}
+    if (!valid || !user) {
+      logger.warn('Authentication failed: Invalid or expired token', {
+        tokenId: token.slice(0, 10) + '...',
+        error
+      });
+      return new Response(JSON.stringify({message:'Unauthorized: Invalid authentication token'}), { status: 401 });
+    }
+
+    // Extract user information from the validated payload
+    // const user: UserContext = {
+    //   id: payload.sub || '',
+    //   email: payload.email || '',
+    //   // Add any other claims you need
+    //   roles: payload.roles || [],
+    //   name: payload.name || ''
+    // };
+
+    // Update trace context with user info
+    if (logger.context && typeof logger.context === 'object') {
+      (logger.context as AuthenticatedTraceContext).user = user;
+
+      // Also add user info to the metadata for logging
+      logger.context.metadata = {
+        ...logger.context.metadata,
+        userId: user.id,
+        userEmail: user.email
+      };
+    }
+
+    logger.debug('Authentication successful', { userId: user.id });
+
+    // Create a new request with user context in headers
+    const enhancedRequest = new Request(request);
+    enhancedRequest.headers.set('X-User-ID', user.id);
+    enhancedRequest.headers.set('X-User-Email', user.email);
+
+    return await next(enhancedRequest);
+  } catch (error) {
+    logger.error('Authentication error', error);
+    return new Response(JSON.stringify({message:'Authentication error'}), { status: 500 });
+  }
 }
-
-// Example token validation function (replace with your actual implementation)
-async function validateToken(token: string, env: Env, logger: Logger): Promise<boolean> {
-	// Placeholder for actual token validation logic
-	// You might validate against a KV store, call an external auth service, etc.
-	try {
-		// Example: Check if token exists in KV store
-		const storedToken = await env.AUTH_KV?.get(`token:${token}`);
-		return !!storedToken;
-	} catch (error) {
-		logger.error('Token validation error', error);
-		return false;
-	}
-}
-
 // Create a route map to match paths and methods to handlers
 const routeMap: Record<string, Record<string, RouteHandler>> = {
 	'/nodes': {
@@ -100,7 +195,7 @@ const routeMap: Record<string, Record<string, RouteHandler>> = {
 	}
 };
 
-// Public routes that don't require authentication (if needed)
+// Public routes that don't require authentication
 const publicRoutes: string[] = [
 	// Add any routes that should be public
 	// Example: '/health', '/api/docs', etc.

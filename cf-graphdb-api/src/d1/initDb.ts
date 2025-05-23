@@ -1,5 +1,6 @@
 import {Logger} from "../logger/logger";
 import {NODES_TABLE,EDGES_TABLE} from "../constants";
+import { D1Database } from "@cloudflare/workers-types";
 
 export async function initializeDatabase(db: D1Database, logger: Logger): Promise<void> {
 	logger.debug('Initializing database tables');
