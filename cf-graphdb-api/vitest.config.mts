@@ -17,7 +17,7 @@ export default defineWorkersConfig({
 		},
 		coverage: {
 			provider:'istanbul',
-			reporter: ['text', 'json', 'html'],
+			reporter: ['text', 'json', 'html','lcov'],
 			exclude: [
 				'node_modules/',
 				'dist/',
