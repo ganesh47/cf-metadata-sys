@@ -1,0 +1,134 @@
+// Modify your index.spec.ts to add these imports and hooks
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
+import {env, SELF} from 'cloudflare:test';
+import {cleanAllData} from './setup';
+
+describe('/edge API GraphDB Worker Tests', () => {
+	const eenv = env as any
+	const validToken = eenv.TEST_TOKEN;
+	// Run once after all tests complete
+	afterAll(async () => {
+		await cleanAllData();
+		console.log('✓ Final database cleanup completed');
+	});
+	// Your existing test suites...
+	describe('Edge Operations', () => {
+		let nodeId1: string;
+		let nodeId2: string;
+
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
+		beforeEach(async () => {
+			// Create test nodes
+			const node1Response = await SELF.fetch('http://localhost/nodes', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+				body: JSON.stringify({
+					type: 'user',
+					properties: {name: 'Alice'}
+				})
+			});
+			const node1 = await node1Response.json<any>();
+			nodeId1 = node1.id;
+
+			const node2Response = await SELF.fetch('http://localhost/nodes', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+				body: JSON.stringify({
+					type: 'user',
+					properties: {name: 'Bob'}
+				})
+			});
+			const node2 = await node2Response.json<any>();
+			nodeId2 = node2.id;
+		});
+
+		it('should create an edge between nodes', async () => {
+			const edgeData = {
+				from_node: nodeId1,
+				to_node: nodeId2,
+				relationship_type: 'follows',
+				properties: {since: '2024-01-01'}
+			};
+
+			const response = await SELF.fetch('http://localhost/edges', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+				body: JSON.stringify(edgeData)
+			});
+
+			expect(response.status).toBe(200);
+
+			const result = await response.json<any>();
+			expect(result.from_node).toBe(nodeId1);
+			expect(result.to_node).toBe(nodeId2);
+			expect(result.relationship_type).toBe('follows');
+			expect(result.properties.since).toBe('2024-01-01');
+			expect(result.id).toBeDefined();
+		});
+
+		it('should list edges with filtering', async () => {
+			// Create multiple edges
+			await Promise.all([
+				SELF.fetch('http://localhost/edges', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						from_node: nodeId1,
+						to_node: nodeId2,
+						relationship_type: 'follows'
+					})
+				}),
+				SELF.fetch('http://localhost/edges', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						from_node: nodeId2,
+						to_node: nodeId1,
+						relationship_type: 'blocks'
+					})
+				})
+			]);
+
+			// Get all edges
+			const allResponse = await SELF.fetch('http://localhost/edges', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+			expect(allResponse.status).toBe(200);
+			const allEdges = await allResponse.json<any>();
+			expect(allEdges.length).toBeGreaterThanOrEqual(2);
+
+			// Get edges by type
+			const followsResponse = await SELF.fetch('http://localhost/edges?type=follows', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+			expect(followsResponse.status).toBe(200);
+			const followsEdges = await followsResponse.json<any>();
+			expect(followsEdges.length).toBeGreaterThanOrEqual(1);
+			followsEdges.forEach((edge: any) => expect(edge.relationship_type).toBe('follows'));
+
+			// Get edges by from_node
+			const fromResponse = await SELF.fetch(`http://localhost/edges?from=${nodeId1}`, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+			expect(fromResponse.status).toBe(200);
+			const fromEdges = await fromResponse.json<any>();
+			expect(fromEdges.length).toBeGreaterThanOrEqual(1);
+			fromEdges.forEach((edge: any) => expect(edge.from_node).toBe(nodeId1));
+		});
+	});
+});

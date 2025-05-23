@@ -1,0 +1,130 @@
+// Modify your index.spec.ts to add these imports and hooks
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
+import {env, SELF} from 'cloudflare:test';
+import {cleanAllData} from './setup';
+
+describe('/graph API GraphDB Worker Tests', () => {
+	const eenv = env as any
+	const validToken = eenv.TEST_TOKEN;
+	// Run once after all tests complete
+	afterAll(async () => {
+		await cleanAllData();
+		console.log('✓ Final database cleanup completed');
+	});
+	describe('Graph Query Operations', () => {
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
+
+		beforeEach(async () => {
+			// Set up the test graph
+			const users = await Promise.all([
+				SELF.fetch('http://localhost/nodes', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						type: 'user',
+						properties: {name: 'Alice', role: 'admin'}
+					})
+				}).then((r:any) => r.json() as Promise<any>),
+				SELF.fetch('http://localhost/nodes', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						type: 'user',
+						properties: {name: 'Bob', role: 'user'}
+					})
+				}).then((r:any) => r.json()),
+				SELF.fetch('http://localhost/nodes', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						type: 'document',
+						properties: {title: 'Important Doc'}
+					})
+				}).then((r:any) => r.json())
+			]);
+
+			// Create relationships
+			await Promise.all([
+				SELF.fetch('http://localhost/edges', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						from_node: users[0].id,
+						to_node: users[1].id,
+						relationship_type: 'manages'
+					})
+				}),
+				SELF.fetch('http://localhost/edges', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({
+						from_node: users[1].id,
+						to_node: users[2].id,
+						relationship_type: 'authored'
+					})
+				})
+			]);
+		});
+
+		it('should execute graph queries', async () => {
+			const queryData = {
+				node_type: 'user',
+				limit: 10
+			};
+
+			const response = await SELF.fetch('http://localhost/query', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+				body: JSON.stringify(queryData)
+			});
+
+			expect(response.status).toBe(200);
+
+			const result = await response.json<any>();
+			expect(result.nodes).toBeDefined();
+			expect(result.edges).toBeDefined();
+			expect(result.metadata).toBeDefined();
+			expect(result.metadata.total_nodes).toBeGreaterThan(0);
+			expect(result.metadata.query_time_ms).toBeGreaterThan(0);
+		});
+
+		it('should traverse graph from starting node', async () => {
+			// Get a user node ID for traversal
+			const nodesResponse = await SELF.fetch('http://localhost/nodes?type=user&limit=1', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+			const nodes = await nodesResponse.json<any>();
+			const startNodeId = nodes[0].id;
+
+			const traversalData = {
+				start_node: startNodeId,
+				max_depth: 2
+			};
+
+			const response = await SELF.fetch('http://localhost/traverse', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+				body: JSON.stringify(traversalData)
+			});
+
+			expect(response.status).toBe(200);
+
+			const result = await response.json<any>();
+			expect(result.nodes).toBeDefined();
+			expect(result.edges).toBeDefined();
+			expect(result.paths).toBeDefined();
+			expect(Array.isArray(result.nodes)).toBe(true);
+			expect(Array.isArray(result.edges)).toBe(true);
+			expect(Array.isArray(result.paths)).toBe(true);
+		});
+	});
+});
