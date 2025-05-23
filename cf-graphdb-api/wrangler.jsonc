@@ -11,6 +11,34 @@
 		"enabled": true
 	},
 	"env": {
+		"stage": {
+			"vars": {
+				"LOG_LEVEL": "warn"
+			},
+			"d1_databases": [
+				{
+					"binding": "GRAPH_DB",
+					"database_name": "graph-metadata-stage",
+					"database_id": "d45ff832-b846-47f6-ac3e-ea854c2e114e"
+				}
+			],
+			// KV namespace
+			"kv_namespaces": [
+				{
+					"binding": "GRAPH_KV",
+					"id": "4cf344a0a88b49c08120dd27e86de4ad"
+					// Replace it with actual namespace ID
+				}
+			],
+			// R2 bucket
+			"r2_buckets": [
+				{
+					"binding": "GRAPH_BUCKET",
+					"bucket_name": "graph-metadata-exports-stage",
+					"preview_bucket_name": "graph-metadata-exports-stage"
+				}
+			]
+		},
 		"dev": {
 			"vars": {
 				"LOG_LEVEL": "performance"
