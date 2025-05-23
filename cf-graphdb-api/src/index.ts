@@ -2,17 +2,12 @@ import {Logger} from "./logger/logger";
 import {Env, TraceContext} from "./types/graph";
 import {initializeDatabase} from "./d1/initDb";
 import {
-	createEdge,
-	createNode,
-	deleteNode,
-	getEdges,
-	getNode,
-	getNodes,
 	queryGraph,
-	traverseGraph,
-	updateNode
-} from "./graph/crud";
+	traverseGraph
+} from "./graph/traversals";
 import {exportMetadata, importMetadata} from "./graph/ops";
+import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/node";
+import {createEdge, getEdges} from "./graph/edge";
 
 // Define route handler interface
 type RouteHandler = (request: Request, env: Env, logger: Logger, params?: Record<string, string>) => Promise<Response>;

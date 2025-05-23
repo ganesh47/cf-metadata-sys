@@ -1,7 +1,7 @@
 import GraphNode, {Env, GraphEdge} from "../types/graph";
 import {Logger} from "../logger/logger";
 import {EDGES_TABLE, NODES_TABLE} from "../constants";
-import {updateAdjacencyList} from "./crud";
+import {updateAdjacencyList} from "./traversals";
 
 export async function importMetadata(request: Request, env: Env, logger: Logger): Promise<Response> {
 	logger.debug('Starting metadata import');
