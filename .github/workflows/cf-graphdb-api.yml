@@ -1,0 +1,204 @@
+name: Cloudflare GraphDB API - Test & Build
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - '**'
+      - '!**.md'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - '**'
+      - '!**.md'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-coverage
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+          retention-days: 7
+
+#  deploy-stage:
+#    name: Deploy Preview
+#    if: github.event_name == 'pull_request'
+#    needs: build
+#    runs-on: ubuntu-latest
+#    environment: preview
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '20'
+#          cache: 'npm'
+#
+#      - name: Download build artifacts
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: dist-files
+#          path: dist
+#
+#      - name: Install Wrangler
+#        run: npm install -g wrangler
+#
+#      - name: Deploy to Cloudflare Workers (Preview)
+#        env:
+#          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#        run: |
+#          # Create a unique preview deployment name based on PR number
+#          PREVIEW_NAME="graphdb-pr-${{ github.event.pull_request.number }}"
+#          wrangler deploy --name $PREVIEW_NAME --compatibility-date=$(date +%Y-%m-%d)
+#
+#      - name: Comment Preview URL on PR
+#        uses: actions/github-script@v7
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          script: |
+#            const previewUrl = `https://graphdb-pr-${{ github.event.pull_request.number }}.<your-workers-subdomain>.workers.dev`;
+#            github.rest.issues.createComment({
+#              issue_number: context.issue.number,
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              body: `🚀 Preview deployment available at: [${previewUrl}](${previewUrl})`
+#            });
+#
+#  deploy-production:
+#    name: Deploy Production
+#    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+#    needs: build
+#    runs-on: ubuntu-latest
+#    environment: production
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '20'
+#          cache: 'npm'
+#
+#      - name: Download build artifacts
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: dist-files
+#          path: dist
+#
+#      - name: Install Wrangler
+#        run: npm install -g wrangler
+#
+#      - name: Deploy to Cloudflare Workers (Production)
+#        env:
+#          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#        run: |
+#          wrangler deploy --name graphdb-api --compatibility-date=$(date +%Y-%m-%d)
+#
+#      - name: Create Release Tag
+#        id: create_tag
+#        run: |
+#          TAG_NAME="v$(date +'%Y.%m.%d.%H%M')"
+#          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+#          git tag $TAG_NAME
+#          git push origin $TAG_NAME
+#
+#      - name: Create GitHub Release
+#        uses: actions/github-script@v7
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          script: |
+#            github.rest.repos.createRelease({
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              tag_name: process.env.TAG_NAME,
+#              name: `Release ${process.env.TAG_NAME}`,
+#              body: 'Production deployment via GitHub Actions',
+#              draft: false,
+#              prerelease: false
+#            });
+#
+#  database-migrations:
+#    name: Run Database Migrations
+#    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+#    needs: deploy-production
+#    runs-on: ubuntu-latest
+#    environment: production
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '20'
+#          cache: 'npm'
+#
+#      - name: Install dependencies
+#        run: npm ci
+#
+#      - name: Run migrations
+#        env:
+#          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+#        run: |
+#          # Run D1 migrations using wrangler
+#          npx wrangler d1 migrations apply GRAPH_DB --production

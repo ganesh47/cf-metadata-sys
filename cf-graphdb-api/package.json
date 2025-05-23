@@ -1,0 +1,39 @@
+{
+	"name": "cf-graphdb-api",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev --env dev",
+		"dev:stage": "wrangler dev --env stage",
+		"test": "WRANGLER_ENV=dev vitest",
+		"test:dev": "WRANGLER_ENV=dev vitest",
+		"test:stage": "WRANGLER_ENV=stage vitest",
+		"test:watch": "WRANGLER_ENV=dev vitest --watch",
+		"test:coverage": "WRANGLER_ENV=dev vitest --coverage",
+		"test:coverage:stage": "WRANGLER_ENV=stage vitest --coverage",
+		"deploy:dev": "wrangler deploy --env dev",
+		"deploy:stage": "npm run test:stage && wrangler deploy --env stage",
+		"deploy:prod": "npm run verify:prod && wrangler deploy --env prod",
+		"verify:prod": "echo 'Production deployment requires manual verification. Use npm run deploy:prod only.' && npm run lint && npm run type-check",
+		"typegen": "wrangler types",
+		"typegen:dev": "wrangler types --env dev",
+		"typegen:stage": "wrangler types --env stage",
+		"typegen:prod": "wrangler types --env prod",
+		"lint": "eslint src/**/*.ts",
+		"lint:fix": "eslint src/**/*.ts --fix",
+		"type-check": "tsc --noEmit",
+		"ci:dev": "npm run lint && npm run type-check && npm run test:dev",
+		"ci:stage": "npm run lint && npm run type-check && npm run test:stage",
+		"ci:prod": "npm run lint && npm run type-check && echo 'No tests run on production'",
+		"prebuild": "npm run typegen",
+		"preinstall": "npx only-allow npm",
+		"prepare": "npm run type-check"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.8.19",
+		"@vitest/coverage-istanbul": "^3.0.9",
+		"typescript": "^5.5.2",
+		"vitest": "~3.0.7",
+		"wrangler": "^4.16.1"
+	}
+}
