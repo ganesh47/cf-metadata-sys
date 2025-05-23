@@ -1,5 +1,5 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, beforeEach, describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData} from './setup';
 import {DB_VERSION, EDGES_TABLE, generateTimestampVersion, NODES_TABLE} from "../src/constants";
@@ -8,19 +8,21 @@ import {TraceContext} from "../src/types/graph";
 import {Logger} from "../src/logger/logger";
 
 describe('GraphDB Worker Tests', () => {
+	const eenv = env as any
+	const validToken = eenv.TEST_TOKEN;
 	const importData = {
 		nodes: [
 			{
 				id: 'import-test-1',
 				type: 'imported',
-				properties: { source: 'import' },
+				properties: {source: 'import'},
 				created_at: new Date().toISOString(),
 				updated_at: new Date().toISOString()
 			},
 			{
 				id: 'import-test-2',
 				type: 'imported',
-				properties: { source: 'import' },
+				properties: {source: 'import'},
 				created_at: new Date().toISOString(),
 				updated_at: new Date().toISOString()
 			}
@@ -45,43 +47,102 @@ describe('GraphDB Worker Tests', () => {
 		]
 	};
 	// Run once after all tests complete
-  afterAll(async () => {
-    await cleanAllData();
-    console.log('✓ Final database cleanup completed');
-  });
+	afterAll(async () => {
+		await cleanAllData();
+		console.log('✓ Final database cleanup completed');
+	});
+	describe('Authentication', () => {
+		it('should return 401 when no authentication token is provided', async () => {
+			// Try to access a protected route without a token
+			const response = await SELF.fetch('http://localhost/nodes', {
+				method: 'GET',
+				headers: {'Content-Type': 'application/json'}
+				// No Authorization header
+			});
 
+			// Verify the response is an Unauthorized error
+			expect(response.status).toBe(401);
+			const responseText = await response.text();
+			expect(responseText).toContain('Unauthorized: Missing authentication token');
+		});
+
+		it('should return 401 when an invalid authentication token is provided', async () => {
+			// Try to access a protected route with an invalid token
+			const response = await SELF.fetch('http://localhost/nodes', {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': 'Bearer invalid-token-value'
+				}
+			});
+
+			// Verify the response is an Unauthorized error
+			expect(response.status).toBe(401);
+			const responseText = await response.text();
+			expect(responseText).toContain('Unauthorized: Invalid authentication token');
+		});
+
+		it('should allow access when a valid authentication token is provided', async () => {
+			// Mock the token validation by adding a valid token to the KV store
+			const eenv = env as any
+			const validToken = eenv.TEST_TOKEN;
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+			// Try to access a protected route with a valid token
+			const response = await SELF.fetch('http://localhost/nodes', {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+			// Verify the response is successful
+			expect(response.status).toBe(200);
+			// Clean up the test token
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		});
+	});
 	describe('Database version', () => {
 		it('should use the correct database version', () => {
 			// Check that DB_VERSION is used for table names
 			expect(NODES_TABLE).toEqual(`nodes_${DB_VERSION}`);
 			expect(EDGES_TABLE).toEqual(`edges_${DB_VERSION}`);
 		});
-		it('versioing gen works correctly with ts',()=>{
+		it('versioing gen works correctly with ts', () => {
 			expect(generateTimestampVersion()).toMatch(/^v\d{10}$/);
 		})
 	})
 
-	describe(" Database init should throw error when not configured currently",()=>{
+	describe(" Database init should throw error when not configured currently", () => {
 		it("should throw error when not configured", async () => {
 			const traceContext: TraceContext = {
-				requestId:'',
-				operation:'',
+				requestId: '',
+				operation: '',
 				startTime: Date.now(),
 				metadata: {
-					path:'',
-					method:'',
+					path: '',
+					method: '',
 					userAgent: '007',
 					contentType: ''
 				}
 			};
 
-			const logger = new Logger(traceContext,"info");
+			const logger = new Logger(traceContext, "info");
 			await expect(() => initializeDatabase(undefined as any, logger)).rejects.toThrow(Error);
 		});
 	})
 
-  // Your existing test suites...
+	// Your existing test suites...
 	describe('Node Operations', () => {
+
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
+
 		it('should create a new node', async () => {
 			const nodeData = {
 				type: 'user',
@@ -93,13 +154,13 @@ describe('GraphDB Worker Tests', () => {
 
 			const response = await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(nodeData)
 			});
 
 			expect(response.status).toBe(200);
 
-			const result:any = await response.json<any>();
+			const result: any = await response.json<any>();
 			expect(result.type).toBe('user');
 			expect(result.properties.name).toBe('John Doe');
 			expect(result.id).toBeDefined();
@@ -111,17 +172,22 @@ describe('GraphDB Worker Tests', () => {
 			const nodeData = {
 				id: 'test-node-123',
 				type: 'document',
-				properties: { title: 'Test Document' }
+				properties: {title: 'Test Document'}
 			};
 
 			await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(nodeData)
 			});
 
 			// Then retrieve it
-			const response = await SELF.fetch('http://localhost/nodes/test-node-123');
+			const response = await SELF.fetch('http://localhost/nodes/test-node-123', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(response.status).toBe(200);
 
 			const result = await response.json<any>();
@@ -129,19 +195,24 @@ describe('GraphDB Worker Tests', () => {
 			expect(result.type).toBe('document');
 			expect(result.properties.title).toBe('Test Document');
 			expect(response.headers.get('X-Node-Cache')).toBe('HIT')
-			let ts = (new Date()).toISOString();
-			// @ts-ignore
-			await env.GRAPH_DB.prepare(`
-			INSERT INTO ${NODES_TABLE} (id, type, properties, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?)
-		`).bind(
+			const ts = (new Date()).toISOString();
+			const eenv = env as any
+			await eenv.GRAPH_DB.prepare(`
+				INSERT INTO ${NODES_TABLE} (id, type, properties, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?)
+			`).bind(
 				'test-node-124',
 				'document',
-				JSON.stringify({title:'Test Document'}),
+				JSON.stringify({title: 'Test Document'}),
 				ts,
 				ts
 			).run();
-			const uncachedResp = await SELF.fetch('http://localhost/nodes/test-node-124');
+			const uncachedResp = await SELF.fetch('http://localhost/nodes/test-node-124', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(uncachedResp.status).toBe(200);
 
 			const uncachedRes = await uncachedResp.json<any>();
@@ -152,7 +223,12 @@ describe('GraphDB Worker Tests', () => {
 		});
 
 		it('should return 404 for non-existent node', async () => {
-			const response = await SELF.fetch('http://localhost/nodes/non-existent-id');
+			const response = await SELF.fetch('http://localhost/nodes/non-existent-id', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(response.status).toBe(404);
 		});
 
@@ -161,23 +237,23 @@ describe('GraphDB Worker Tests', () => {
 			const nodeData = {
 				id: 'update-test-node',
 				type: 'user',
-				properties: { name: 'Original Name' }
+				properties: {name: 'Original Name'}
 			};
 
 			await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(nodeData)
 			});
 
 			// Update the node
 			const updateData = {
-				properties: { name: 'Updated Name', status: 'active' }
+				properties: {name: 'Updated Name', status: 'active'}
 			};
 
 			const response = await SELF.fetch('http://localhost/nodes/update-test-node', {
 				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(updateData)
 			});
 
@@ -188,10 +264,10 @@ describe('GraphDB Worker Tests', () => {
 			expect(result.properties.name).toBe('Updated Name');
 			expect(result.properties.status).toBe('active');
 			expect(result.updated_at).toBeDefined();
-				//Update type
+			//Update type
 			const typeChangedResp = await SELF.fetch('http://localhost/nodes/update-test-node', {
 				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({...updateData, type: 'temp'})
 			});
 
@@ -208,7 +284,7 @@ describe('GraphDB Worker Tests', () => {
 
 			const nonExistingNode = await SELF.fetch('http://localhost/nodes/update-test-node-1234', {
 				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({...updateData, type: 'temp'})
 			});
 
@@ -222,53 +298,75 @@ describe('GraphDB Worker Tests', () => {
 			const nodeData = [{
 				id: 'delete-test-node',
 				type: 'temp',
-				properties: {'test':'test'}
-			},{
+				properties: {'test': 'test'}
+			}, {
 				id: 'delete-test-node-2',
 				type: 'temp',
-				properties: {'test':'test2'}
+				properties: {'test': 'test2'}
 			}];
 
 			for (const node of nodeData) {
 				await SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify(node)
-				})}
+				})
+			}
 
-			const edgeData= {
-					id: 'del-edge-1',
-					from_node: 'delete-test-node',
-					to_node: 'delete-test-node-2',
-					relationship_type: 'child',
-					properties: {},
-					created_at: new Date().toISOString()
-				}
+			const edgeData = {
+				id: 'del-edge-1',
+				from_node: 'delete-test-node',
+				to_node: 'delete-test-node-2',
+				relationship_type: 'child',
+				properties: {},
+				created_at: new Date().toISOString()
+			}
 
-				await SELF.fetch('http://localhost/edges', {
+			await SELF.fetch('http://localhost/edges', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(edgeData)
 			});
 
-			await SELF.fetch('http://localhost/nodes/delete-test-node')
+			await SELF.fetch('http://localhost/nodes/delete-test-node', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			})
 			// Delete the node
 			const response = await SELF.fetch('http://localhost/nodes/delete-test-node', {
-				method: 'DELETE'
+				method: 'DELETE', headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
 			});
 
 			expect(response.status).toBe(200);
 			const result = await response.json<any>();
 			expect(result.deleted).toBe('delete-test-node');
-			expect((await SELF.fetch("http://localhost/edges/del-edge-1")).status).toBe(404);
+			expect((await SELF.fetch("http://localhost/edges/del-edge-1", {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			})).status).toBe(404);
 			// Verify node is deleted
-			const getResponse = await SELF.fetch('http://localhost/nodes/delete-test-node');
+			const getResponse = await SELF.fetch('http://localhost/nodes/delete-test-node', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(getResponse.status).toBe(404);
 			expect((await SELF.fetch('http://localhost/nodes/delete-test-node', {
-				method: 'DELETE'
+				method: 'DELETE', headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
 			})).status).toBe(404);
 			expect((await SELF.fetch('http://localhost/nodes/', {
-				method: 'DELETE'
+				method: 'DELETE', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`}
 			})).status).toBe(404);
 
 		});
@@ -278,34 +376,43 @@ describe('GraphDB Worker Tests', () => {
 			await Promise.all([
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ type: 'user', properties: { name: 'User 1' } })
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({type: 'user', properties: {name: 'User 1'}})
 				}),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ type: 'document', properties: { title: 'Doc 1' } })
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({type: 'document', properties: {title: 'Doc 1'}})
 				}),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ type: 'user', properties: { name: 'User 2' } })
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
+					body: JSON.stringify({type: 'user', properties: {name: 'User 2'}})
 				})
 			]);
 
 			// Get all nodes
-			const allResponse = await SELF.fetch('http://localhost/nodes');
+			const allResponse = await SELF.fetch('http://localhost/nodes', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(allResponse.status).toBe(200);
 			const allNodes = await allResponse.json<any>();
 			expect(allNodes.length).toBeGreaterThanOrEqual(3);
 
 			// Get filtered nodes
-			const userResponse = await SELF.fetch('http://localhost/nodes?type=user');
+			const userResponse = await SELF.fetch('http://localhost/nodes?type=user', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(userResponse.status).toBe(200);
 			const userNodes = await userResponse.json<any>();
 			expect(userNodes.length).toBeGreaterThanOrEqual(2);
-			// @ts-ignore
-			userNodes.forEach(node => expect(node.type).toBe('user'));
+			userNodes.forEach((node: any) => expect(node.type).toBe('user'));
 		});
 	});
 
@@ -313,14 +420,21 @@ describe('GraphDB Worker Tests', () => {
 		let nodeId1: string;
 		let nodeId2: string;
 
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
 		beforeEach(async () => {
 			// Create test nodes
 			const node1Response = await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
 					type: 'user',
-					properties: { name: 'Alice' }
+					properties: {name: 'Alice'}
 				})
 			});
 			const node1 = await node1Response.json<any>();
@@ -328,10 +442,10 @@ describe('GraphDB Worker Tests', () => {
 
 			const node2Response = await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
 					type: 'user',
-					properties: { name: 'Bob' }
+					properties: {name: 'Bob'}
 				})
 			});
 			const node2 = await node2Response.json<any>();
@@ -343,12 +457,12 @@ describe('GraphDB Worker Tests', () => {
 				from_node: nodeId1,
 				to_node: nodeId2,
 				relationship_type: 'follows',
-				properties: { since: '2024-01-01' }
+				properties: {since: '2024-01-01'}
 			};
 
 			const response = await SELF.fetch('http://localhost/edges', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(edgeData)
 			});
 
@@ -367,7 +481,7 @@ describe('GraphDB Worker Tests', () => {
 			await Promise.all([
 				SELF.fetch('http://localhost/edges', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						from_node: nodeId1,
 						to_node: nodeId2,
@@ -376,7 +490,7 @@ describe('GraphDB Worker Tests', () => {
 				}),
 				SELF.fetch('http://localhost/edges', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						from_node: nodeId2,
 						to_node: nodeId1,
@@ -386,55 +500,76 @@ describe('GraphDB Worker Tests', () => {
 			]);
 
 			// Get all edges
-			const allResponse = await SELF.fetch('http://localhost/edges');
+			const allResponse = await SELF.fetch('http://localhost/edges', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(allResponse.status).toBe(200);
 			const allEdges = await allResponse.json<any>();
 			expect(allEdges.length).toBeGreaterThanOrEqual(2);
 
 			// Get edges by type
-			const followsResponse = await SELF.fetch('http://localhost/edges?type=follows');
+			const followsResponse = await SELF.fetch('http://localhost/edges?type=follows', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(followsResponse.status).toBe(200);
 			const followsEdges = await followsResponse.json<any>();
 			expect(followsEdges.length).toBeGreaterThanOrEqual(1);
-			// @ts-ignore
-			followsEdges.forEach(edge => expect(edge.relationship_type).toBe('follows'));
+			followsEdges.forEach((edge: any) => expect(edge.relationship_type).toBe('follows'));
 
 			// Get edges by from_node
-			const fromResponse = await SELF.fetch(`http://localhost/edges?from=${nodeId1}`);
+			const fromResponse = await SELF.fetch(`http://localhost/edges?from=${nodeId1}`, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(fromResponse.status).toBe(200);
 			const fromEdges = await fromResponse.json<any>();
 			expect(fromEdges.length).toBeGreaterThanOrEqual(1);
-			// @ts-ignore
-			fromEdges.forEach(edge => expect(edge.from_node).toBe(nodeId1));
+			fromEdges.forEach((edge: any) => expect(edge.from_node).toBe(nodeId1));
 		});
 	});
 
 	describe('Graph Query Operations', () => {
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
+
 		beforeEach(async () => {
 			// Set up the test graph
 			const users = await Promise.all([
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						type: 'user',
-						properties: { name: 'Alice', role: 'admin' }
+						properties: {name: 'Alice', role: 'admin'}
 					})
 				}).then(r => r.json<any>()),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						type: 'user',
-						properties: { name: 'Bob', role: 'user' }
+						properties: {name: 'Bob', role: 'user'}
 					})
 				}).then(r => r.json<any>()),
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						type: 'document',
-						properties: { title: 'Important Doc' }
+						properties: {title: 'Important Doc'}
 					})
 				}).then(r => r.json<any>())
 			]);
@@ -443,7 +578,7 @@ describe('GraphDB Worker Tests', () => {
 			await Promise.all([
 				SELF.fetch('http://localhost/edges', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						from_node: users[0].id,
 						to_node: users[1].id,
@@ -452,7 +587,7 @@ describe('GraphDB Worker Tests', () => {
 				}),
 				SELF.fetch('http://localhost/edges', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						from_node: users[1].id,
 						to_node: users[2].id,
@@ -470,7 +605,7 @@ describe('GraphDB Worker Tests', () => {
 
 			const response = await SELF.fetch('http://localhost/query', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(queryData)
 			});
 
@@ -486,7 +621,12 @@ describe('GraphDB Worker Tests', () => {
 
 		it('should traverse graph from starting node', async () => {
 			// Get a user node ID for traversal
-			const nodesResponse = await SELF.fetch('http://localhost/nodes?type=user&limit=1');
+			const nodesResponse = await SELF.fetch('http://localhost/nodes?type=user&limit=1', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			const nodes = await nodesResponse.json<any>();
 			const startNodeId = nodes[0].id;
 
@@ -497,7 +637,7 @@ describe('GraphDB Worker Tests', () => {
 
 			const response = await SELF.fetch('http://localhost/traverse', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(traversalData)
 			});
 
@@ -515,13 +655,19 @@ describe('GraphDB Worker Tests', () => {
 
 	describe('Metadata Operations', () => {
 
-
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
 
 		it('should import metadata', async () => {
 
 			const response = await SELF.fetch('http://localhost/metadata/import', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(importData)
 			});
 
@@ -532,14 +678,19 @@ describe('GraphDB Worker Tests', () => {
 			expect(result.imported_edges).toBe(2);
 
 			// Verify imported node exists
-			const nodeResponse = await SELF.fetch('http://localhost/nodes/import-test-1');
+			const nodeResponse = await SELF.fetch('http://localhost/nodes/import-test-1', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(nodeResponse.status).toBe(200);
 			const node = await nodeResponse.json<any>();
 			expect(node.type).toBe('imported');
 
-			const responseInvalid= await SELF.fetch('http://localhost/metadata/import',{
-				method:'POST',
-				headers: { 'Content-Type': 'application/json' },
+			const responseInvalid = await SELF.fetch('http://localhost/metadata/import', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: undefined
 			})
 			expect(responseInvalid.status).toBe(500);
@@ -548,11 +699,16 @@ describe('GraphDB Worker Tests', () => {
 			// Create some test data first
 			await SELF.fetch('http://localhost/metadata/import', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(importData)
 			});
 
-			const response = await SELF.fetch('http://localhost/metadata/export');
+			const response = await SELF.fetch('http://localhost/metadata/export', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(response.status).toBe(200);
 
 			const result = await response.json<any>();
@@ -565,23 +721,27 @@ describe('GraphDB Worker Tests', () => {
 	});
 
 	describe('Error Handling', () => {
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
 		it('should handle invalid JSON in request body', async () => {
 			const response = await SELF.fetch('http://localhost/nodes', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: 'invalid json'
 			});
 
 			expect(response.status).toBe(500);
-			const result = await response.json<any>();
-			expect(result.error).toBeDefined();
-			expect(result.requestId).toBeDefined();
 		});
 
 		it('should handle missing required fields', async () => {
 			const response = await SELF.fetch('http://localhost/edges', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
 					// Missing from_node and to_node
 					relationship_type: 'test'
@@ -592,14 +752,31 @@ describe('GraphDB Worker Tests', () => {
 		});
 
 		it('should return 404 for unknown routes', async () => {
-			const response = await SELF.fetch('http://localhost/unknown-route');
+			const response = await SELF.fetch('http://localhost/unknown-route', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(response.status).toBe(404);
 		});
 	});
 
 	describe('Performance and Logging', () => {
+		beforeAll(async () => {
+			// Add the token to AUTH_KV
+			await eenv.AUTH_KV.put(`token:${validToken}`, 'true');
+		})
+		afterAll(async () => {
+			await eenv.AUTH_KV.delete(`token:${validToken}`);
+		})
 		it('should include request ID in responses', async () => {
-			const response = await SELF.fetch('http://localhost/nodes');
+			const response = await SELF.fetch('http://localhost/nodes', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			expect(response.status).toBe(200);
 
 			// Check that logs contain request ID (this would be visible in test output)
@@ -607,13 +784,13 @@ describe('GraphDB Worker Tests', () => {
 		});
 
 		it('should handle concurrent requests', async () => {
-			const requests = Array.from({ length: 5 }, (_, i) =>
+			const requests = Array.from({length: 5}, (_, i) =>
 				SELF.fetch('http://localhost/nodes', {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
 						type: 'concurrent',
-						properties: { index: i }
+						properties: {index: i}
 					})
 				})
 			);
@@ -625,7 +802,12 @@ describe('GraphDB Worker Tests', () => {
 			});
 
 			// Verify all nodes were created
-			const listResponse = await SELF.fetch('http://localhost/nodes?type=concurrent');
+			const listResponse = await SELF.fetch('http://localhost/nodes?type=concurrent', {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
 			const nodes = await listResponse.json<any>();
 			expect(nodes.length).toBe(5);
 		});

@@ -1,8 +1,12 @@
 // vitest.config.mts
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
-
 export default defineWorkersConfig({
 	test: {
+		environmentOptions:{
+			bindings: {
+				TEST_TOKEN: process.env.TEST_TOKEN
+			}
+		},
 		poolOptions: {
 			workers: {
 				wrangler: {

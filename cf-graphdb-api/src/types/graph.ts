@@ -7,6 +7,7 @@ export interface GraphEdge {
 	created_at: string;
 }
 export interface Env {
+	AUTH_KV: Map<string,string>;
 	LOG_LEVEL: string;
 	GRAPH_KV: KVNamespace;
 	GRAPH_BUCKET: R2Bucket;

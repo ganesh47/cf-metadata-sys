@@ -56,6 +56,9 @@
 					"binding": "GRAPH_KV",
 					"id": "ce2ddfa805f4417fa63255f13ce92a45"
 					// Replace it with actual namespace ID
+				},{
+					"binding": "AUTH_KV",
+					"id": "19422bb9dc1846599a7fac56f122e3a5"
 				}
 			],
 			// R2 bucket
