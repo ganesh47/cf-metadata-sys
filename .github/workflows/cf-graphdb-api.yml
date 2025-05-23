@@ -41,6 +41,7 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@v2
         with:
+          projectBaseDir: cf-graphdb-api
           args: >
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
