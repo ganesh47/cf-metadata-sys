@@ -9,14 +9,14 @@ declare const process: {
 		NODE_ENV?: string;
 	}
 };
-const isCI =
+const isCI =  typeof process !== 'undefined' && process.env ?
 	process.env.CI === 'true' ||
 	process.env.GITHUB_ACTIONS === 'true' ||
 	process.env.GITLAB_CI === 'true' ||
 	process.env.JENKINS_URL !== undefined ||
 	process.env.TRAVIS === 'true' ||
 	process.env.CF_PAGES === 'true'||
-	process.env.NODE_ENV === 'test';
+	process.env.NODE_ENV === 'test': false;
 
 // Generate timestamp-based version for CI environments
 export const generateTimestampVersion = () => {
