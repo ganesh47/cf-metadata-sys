@@ -13,7 +13,8 @@
 	"env": {
 		"stage": {
 			"vars": {
-				"LOG_LEVEL": "warn"
+				"LOG_LEVEL": "warn",
+				"JWT_SECRET": "dummy-not-so-secret"
 			},
 			"d1_databases": [
 				{
