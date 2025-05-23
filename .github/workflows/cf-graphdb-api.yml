@@ -30,16 +30,11 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'cf-graphdb-api/package-lock.json'
-      - name: 🔍 Validate JWT_SECRET Injection
-        run: |
-          echo "JWT_SECRET is set? -> ${JWT_SECRET:+yes}"  # will echo "yes" if present
-          echo "First 4 chars of JWT_SECRET: ${JWT_SECRET:0:4}"  # safe preview
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
       - name: Stage CI
         run: npm run ci:stage
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
+          WORKER_ENV: 'stage'
       - name: Upload test coverage
         uses: actions/upload-artifact@v4
         with:
