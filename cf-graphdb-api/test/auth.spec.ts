@@ -50,6 +50,17 @@ describe('Auth GraphDB Worker Tests', () => {
 			const responseMsg = await response.json();
 			expect(responseMsg.message).toContain('Unauthorized: Missing authentication token');
 		});
+		it('should return 404 for an non-existing route', async () => {
+			// Try to access a protected route without a token
+			const response = await SELF.fetch('http://localhost/zydf', {
+				method: 'GET',
+				headers: {'Content-Type': 'application/json'}
+				// No Authorization header
+			});
+
+			// Verify the response is an Unauthorized error
+			expect(response.status).toBe(404);
+		});
 
 		it('should return 401 when an invalid authentication token is provided', async () => {
 			// Try to access a protected route with an invalid token

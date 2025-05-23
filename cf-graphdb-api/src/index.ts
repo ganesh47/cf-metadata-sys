@@ -237,8 +237,7 @@ async function handleRequest(path: string, method: string, request: Request, env
 	if (match) {
 		const {pattern, params} = match;
 		const handlers = routeMap[pattern];
-
-		if (handlers && handlers[method]) {
+		if (handlers[method]) {
 			// Check if route is public or requires authentication
 			if (publicRoutes?.includes(path)) {
 				return await handlers[method](request, env, logger, params);
