@@ -6,6 +6,7 @@ export default defineWorkersConfig({
 		environmentOptions:{
 			bindings: {
 				JWT_SECRET: process.env.JWT_SECRET,
+				INIT_DB: process.env.INIT_DB ?? 'true',
 			}
 		},
 		poolOptions: {

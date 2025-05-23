@@ -9,7 +9,7 @@ import {exportMetadata, importMetadata} from "./graph/ops";
 import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/node";
 import {createEdge, getEdges} from "./graph/edge";
 import type {ExecutionContext} from '@cloudflare/workers-types';
-import { jwtVerify } from 'jose';
+import {jwtVerify} from 'jose';
 
 // Define user context interface
 interface UserContext {
@@ -42,129 +42,130 @@ type Middleware = (
 
 // JWT validation using jose library with JWT_SECRET
 async function validateJwt(token: string, env: Env, logger: Logger): Promise<{
-  valid: boolean;
-  user: { id: string, email: string } | null;
-  error?: string;
+	valid: boolean;
+	user: { id: string, email: string } | null;
+	error?: string;
 }> {
-  try {
-    // Get the JWT_SECRET from environment
-    const secret = env.JWT_SECRET;
-    if (!secret) {
-      logger.error('JWT_SECRET not configured');
-      return { valid: false, user: null, error: 'JWT_SECRET not configured' };
-    }
+	try {
+		// Get the JWT_SECRET from environment
+		const secret = env.JWT_SECRET;
+		if (!secret) {
+			logger.error('JWT_SECRET not configured');
+			return {valid: false, user: null, error: 'JWT_SECRET not configured'};
+		}
 
-    // Convert the secret to Uint8Array (required by jose)
-    const secretKey = new TextEncoder().encode(secret);
+		// Convert the secret to Uint8Array (required by jose)
+		const secretKey = new TextEncoder().encode(secret);
 
-    // Verify the JWT with the secret
-    const { payload } = await jwtVerify(
-      token,
-      secretKey,
-      {
-        // Optional: Add additional verification if needed
-        clockTolerance: 5, // 5 seconds tolerance for clock skew
-      }
-    );
+		// Verify the JWT with the secret
+		const {payload} = await jwtVerify(
+			token,
+			secretKey,
+			{
+				// Optional: Add additional verification if needed
+				clockTolerance: 5, // 5 seconds tolerance for clock skew
+			}
+		);
 
-    // Extract only the needed user information
-    const user = {
-      id: payload.sub ?? '',
-      email: payload.email as string ?? ''
-    };
+		// Extract only the needed user information
+		const user = {
+			id: payload.sub ?? '',
+			email: payload.email as string ?? ''
+		};
 
-    // Validate that required fields exist
-    if (!user.id || !user.email) {
-      logger.warn('JWT missing required user fields', {
-        hasId: !!user.id,
-        hasEmail: !!user.email
-      });
-      return {
-        valid: false,
-        user: null,
-        error: 'JWT payload missing required user fields'
-      };
-    }
+		// Validate that required fields exist
+		if (!user.id || !user.email) {
+			logger.warn('JWT missing required user fields', {
+				hasId: !!user.id,
+				hasEmail: !!user.email
+			});
+			return {
+				valid: false,
+				user: null,
+				error: 'JWT payload missing required user fields'
+			};
+		}
 
-    logger.debug('JWT verified successfully', { userId: user.id });
-    return { valid: true, user };
+		logger.debug('JWT verified successfully', {userId: user.id});
+		return {valid: true, user};
 
-  } catch (error: any) {
-    logger.error('JWT verification failed', { error: error.message });
-    return {
-      valid: false,
-      user: null,
-      error: error.message
-    };
-  }
+	} catch (error: any) {
+		logger.error('JWT verification failed', {error: error.message});
+		return {
+			valid: false,
+			user: null,
+			error: error.message
+		};
+	}
 }
 
 // Authentication middleware with proper JWT validation
 async function authenticate(
-  request: Request,
-  env: Env,
-  logger: Logger,
-  next: (request: Request) => Promise<Response>
+	request: Request,
+	env: Env,
+	logger: Logger,
+	next: (request: Request) => Promise<Response>
 ): Promise<Response> {
-  const authHeader = request.headers.get('Authorization');
+	const authHeader = request.headers.get('Authorization');
 
-  if (!authHeader) {
-    logger.warn('Authentication failed: Missing Authorization header');
-    return new Response(JSON.stringify({message:'Unauthorized: Missing authentication token'}), { status: 401 });
-  }
+	if (!authHeader) {
+		logger.warn('Authentication failed: Missing Authorization header');
+		return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {status: 401});
+	}
 
-  try {
-    // Extract token from Authorization header (Bearer token)
-    const token = authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : authHeader;
+	try {
+		// Extract token from Authorization header (Bearer token)
+		const token = authHeader.startsWith('Bearer ')
+			? authHeader.slice(7)
+			: authHeader;
 
-    // Validate the JWT with proper signature verification
-    const { valid, user, error } = await validateJwt(token, env, logger);
+		// Validate the JWT with proper signature verification
+		const {valid, user, error} = await validateJwt(token, env, logger);
 
 
-    if (!valid || !user) {
-      logger.warn('Authentication failed: Invalid or expired token', {
-        tokenId: token.slice(0, 10) + '...',
-        error
-      });
-      return new Response(JSON.stringify({message:'Unauthorized: Invalid authentication token'}), { status: 401 });
-    }
+		if (!valid || !user) {
+			logger.warn('Authentication failed: Invalid or expired token', {
+				tokenId: token.slice(0, 10) + '...',
+				error
+			});
+			return new Response(JSON.stringify({message: 'Unauthorized: Invalid authentication token'}), {status: 401});
+		}
 
-    // Extract user information from the validated payload
-    // const user: UserContext = {
-    //   id: payload.sub || '',
-    //   email: payload.email || '',
-    //   // Add any other claims you need
-    //   roles: payload.roles || [],
-    //   name: payload.name || ''
-    // };
+		// Extract user information from the validated payload
+		// const user: UserContext = {
+		//   id: payload.sub || '',
+		//   email: payload.email || '',
+		//   // Add any other claims you need
+		//   roles: payload.roles || [],
+		//   name: payload.name || ''
+		// };
 
-    // Update trace context with user info
-    if (logger.context && typeof logger.context === 'object') {
-      (logger.context as AuthenticatedTraceContext).user = user;
+		// Update trace context with user info
+		if (logger.context && typeof logger.context === 'object') {
+			(logger.context as AuthenticatedTraceContext).user = user;
 
-      // Also add user info to the metadata for logging
-      logger.context.metadata = {
-        ...logger.context.metadata,
-        userId: user.id,
-        userEmail: user.email
-      };
-    }
+			// Also add user info to the metadata for logging
+			logger.context.metadata = {
+				...logger.context.metadata,
+				userId: user.id,
+				userEmail: user.email
+			};
+		}
 
-    logger.debug('Authentication successful', { userId: user.id });
+		logger.debug('Authentication successful', {userId: user.id});
 
-    // Create a new request with user context in headers
-    const enhancedRequest = new Request(request);
-    enhancedRequest.headers.set('X-User-ID', user.id);
-    enhancedRequest.headers.set('X-User-Email', user.email);
+		// Create a new request with user context in headers
+		const enhancedRequest = new Request(request);
+		enhancedRequest.headers.set('X-User-ID', user.id);
+		enhancedRequest.headers.set('X-User-Email', user.email);
 
-    return await next(enhancedRequest);
-  } catch (error) {
-    logger.error('Authentication error', error);
-    return new Response(JSON.stringify({message:'Authentication error'}), { status: 500 });
-  }
+		return await next(enhancedRequest);
+	} catch (error) {
+		logger.error('Authentication error', error);
+		return new Response(JSON.stringify({message: 'Authentication error'}), {status: 500});
+	}
 }
+
 // Create a route map to match paths and methods to handlers
 const routeMap: Record<string, Record<string, RouteHandler>> = {
 	'/nodes': {
@@ -291,9 +292,10 @@ export default {
 		try {
 			// Initialize database tables if they don't exist
 			const initStart = Date.now();
-			await initializeDatabase(env.GRAPH_DB, logger);
-			logger.performance('database_init', Date.now() - initStart);
-
+			if (env.INIT_DB?.toLowerCase() === 'true') {
+				await initializeDatabase(env.GRAPH_DB, logger);
+				logger.performance('database_init', Date.now() - initStart);
+			}
 			// Use the new routing system with authentication
 			const response = await handleRequest(path, method, request, env, logger);
 			if (response) return response;

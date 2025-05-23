@@ -9,6 +9,7 @@ export interface GraphEdge {
 	created_at: string;
 }
 export interface Env {
+	INIT_DB: string;
 	JWT_SECRET: string;
 	LOG_LEVEL: string;
 	GRAPH_KV: KVNamespace;
