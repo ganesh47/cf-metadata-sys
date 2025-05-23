@@ -10,7 +10,6 @@ import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/nod
 import {createEdge, getEdges} from "./graph/edge";
 import type {ExecutionContext} from '@cloudflare/workers-types';
 import { jwtVerify } from 'jose';
-import { TextEncoder } from 'util';
 
 // Define user context interface
 interface UserContext {
