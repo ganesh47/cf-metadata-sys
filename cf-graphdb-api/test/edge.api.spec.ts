@@ -1,13 +1,19 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, beforeEach, describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
-import {cleanAllData} from './setup';
+import {cleanAllData, prepareLogger} from './setup';
 import {createJwt} from "./auth.spec";
 import {Env} from "../src/types/graph";
+import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/edge API GraphDB Worker Tests', async () => {
 	const eenv:Env = env as Env
 	const validToken = await createJwt(eenv);
+	const {initStart, logger} = prepareLogger();
+	beforeAll(async ()=>{
+		await initializeDatabase(eenv.GRAPH_DB, logger);
+		logger.performance('database_init', Date.now() - initStart);
+	})
 	// Run once after all tests complete
 	afterAll(async () => {
 		await cleanAllData();

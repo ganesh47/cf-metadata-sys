@@ -1,6 +1,8 @@
 // test/setup.ts - Create this file for test setup and teardown
 
 import { SELF } from 'cloudflare:test';
+import {TraceContext} from "../src/types/graph";
+import {Logger} from "../src/logger/logger";
 
 /**
  * Cleans all data from the database (D1, KV, R2)
@@ -26,3 +28,20 @@ export async function cleanAllData() {
     //qthrow error;
   }
 }
+export const prepareLogger = () => {
+	const LOG_LEVEL = 'info';
+	const initStart = Date.now()
+	const traceContext: TraceContext = {
+		requestId: '',
+		operation: '',
+		startTime: Date.now(),
+		metadata: {
+			path: '',
+			method: '',
+			userAgent: '',
+			contentType: ''
+		}
+	};
+	const logger = new Logger(traceContext, LOG_LEVEL)
+	return {initStart, logger};
+};

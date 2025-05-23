@@ -15,7 +15,7 @@
 			"vars": {
 				"LOG_LEVEL": "warn",
 				"JWT_SECRET": "dummy-not-so-secret",
-				"INIT_DB": "true"
+				"INIT_DB": "false"
 			},
 			"d1_databases": [
 				{
@@ -44,7 +44,7 @@
 		"dev": {
 			"vars": {
 				"LOG_LEVEL": "performance",
-				"INIT_DB": "true"
+				"INIT_DB": "false"
 			},
 			"d1_databases": [
 				{

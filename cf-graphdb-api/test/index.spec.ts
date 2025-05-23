@@ -1,11 +1,16 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
-import {cleanAllData} from './setup';
+import {cleanAllData, prepareLogger} from './setup';
 import {createJwt} from "./auth.spec";
+import {initializeDatabase} from "../src/d1/initDb";
+
+import {Env} from "../src/types/graph";
+
 
 describe('/metadata API Worker Tests', async () => {
-	const eenv = env as any
+	const eenv = env as Env
+	const {initStart, logger} = prepareLogger();
 	const validToken = await createJwt(eenv);
 	const importData = {
 		nodes: [
@@ -43,6 +48,10 @@ describe('/metadata API Worker Tests', async () => {
 			}
 		]
 	};
+	beforeAll(async ()=>{
+		await initializeDatabase(eenv.GRAPH_DB, logger);
+		logger.performance('database_init', Date.now() - initStart);
+	})
 	// Run once after all tests complete
 	afterAll(async () => {
 		await cleanAllData();

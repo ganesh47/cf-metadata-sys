@@ -1,7 +1,7 @@
 // Modify your index.spec.ts to add these imports and hooks
-import {afterAll, describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
-import {cleanAllData} from './setup';
+import {cleanAllData, prepareLogger} from './setup';
 import {DB_VERSION, EDGES_TABLE, generateTimestampVersion, NODES_TABLE} from "../src/constants";
 import {initializeDatabase} from "../src/d1/initDb";
 import {Env, TraceContext} from "../src/types/graph";
@@ -32,6 +32,13 @@ export async function createJwt(eenv:Env) {
 }
 
 describe('Auth GraphDB Worker Tests', () => {
+	const eenv = env as Env
+	const {initStart, logger} = prepareLogger();
+	beforeAll(async ()=>{
+		await initializeDatabase(eenv.GRAPH_DB, logger);
+		logger.performance('database_init', Date.now() - initStart);
+	})
+
 	afterAll(async () => {
 		await cleanAllData();
 		console.log('✓ Final database cleanup completed');
