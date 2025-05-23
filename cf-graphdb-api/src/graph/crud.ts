@@ -78,7 +78,7 @@ export async function queryGraph(request: Request, env: Env, logger: Logger): Pr
 		const queryStart = Date.now();
 		const results = await env.GRAPH_DB.prepare(query).bind(...params).all();
 		logger.performance('d1_graph_query', Date.now() - queryStart, {
-			resultCount: results.results?.length || 0
+			resultCount: results.results?.length ?? 0
 		});
 
 		const processStart = Date.now();
@@ -104,7 +104,7 @@ export async function queryGraph(request: Request, env: Env, logger: Logger): Pr
 					from_node: row.from_node,
 					to_node: row.to_node,
 					relationship_type: row.relationship_type,
-					properties: JSON.parse(row.edge_properties || '{}'),
+					properties: JSON.parse(row.edge_properties ?? '{}'),
 					created_at: row.created_at
 				});
 			}
@@ -143,7 +143,7 @@ export async function getNodes(request: Request, env: Env, logger: Logger): Prom
 	try {
 		const url = new URL(request.url);
 		const nodeType = url.searchParams.get('type');
-		const limit = parseInt(url.searchParams.get('limit') || '100');
+		const limit = parseInt(url.searchParams.get('limit') ?? '100');
 
 		let query = `SELECT *
 					 FROM ${NODES_TABLE}`;
@@ -162,7 +162,7 @@ export async function getNodes(request: Request, env: Env, logger: Logger): Prom
 		const queryStart = Date.now();
 		const results = await env.GRAPH_DB.prepare(query).bind(...params).all();
 		logger.performance('d1_nodes_query', Date.now() - queryStart, {
-			resultCount: results.results?.length || 0
+			resultCount: results.results?.length ?? 0
 		});
 
 		const nodes = results.results?.map((row: any) => ({
@@ -171,7 +171,7 @@ export async function getNodes(request: Request, env: Env, logger: Logger): Prom
 			properties: JSON.parse(row.properties),
 			created_at: row.created_at,
 			updated_at: row.updated_at
-		})) || [];
+		})) ?? [];
 
 		logger.info('Nodes retrieved successfully', {count: nodes.length});
 
@@ -191,7 +191,7 @@ export async function getEdges(request: Request, env: Env, logger: Logger): Prom
 		const relationshipType = url.searchParams.get('type');
 		const fromNode = url.searchParams.get('from');
 		const toNode = url.searchParams.get('to');
-		const limit = parseInt(url.searchParams.get('limit') || '100');
+		const limit = parseInt(url.searchParams.get('limit') ?? '100');
 
 		let query = `SELECT *
 					 FROM ${EDGES_TABLE}
@@ -221,7 +221,7 @@ export async function getEdges(request: Request, env: Env, logger: Logger): Prom
 		const queryStart = Date.now();
 		const results = await env.GRAPH_DB.prepare(query).bind(...params).all();
 		logger.performance('d1_edges_query', Date.now() - queryStart, {
-			resultCount: results.results?.length || 0
+			resultCount: results.results?.length ?? 0
 		});
 
 		const edges = results.results?.map((row: any) => ({
@@ -231,7 +231,7 @@ export async function getEdges(request: Request, env: Env, logger: Logger): Prom
 			relationship_type: row.relationship_type,
 			properties: JSON.parse(row.properties),
 			created_at: row.created_at
-		})) || [];
+		})) ?? [];
 
 		logger.info('Edges retrieved successfully', {count: edges.length});
 
@@ -252,13 +252,13 @@ export async function createNode(request: Request, env: Env, logger: Logger): Pr
 		const body = await request.json() as Partial<GraphNode>;
 		logger.performance('parse_request_body', Date.now() - parseStart);
 
-		const nodeId = body.id || crypto.randomUUID();
+		const nodeId = body.id ?? crypto.randomUUID();
 		const timestamp = new Date().toISOString();
 
 		const node: GraphNode = {
 			id: nodeId,
-			type: body.type || 'default',
-			properties: body.properties || {},
+			type: body.type ?? 'default',
+			properties: body.properties ?? {},
 			created_at: timestamp,
 			updated_at: timestamp
 		};
@@ -370,15 +370,15 @@ export async function createEdge(request: Request, env: Env, logger: Logger): Pr
 		const body = await request.json() as Partial<GraphEdge>;
 		logger.performance('parse_request_body', Date.now() - parseStart);
 
-		const edgeId = body.id || crypto.randomUUID();
+		const edgeId = body.id ?? crypto.randomUUID();
 		const timestamp = new Date().toISOString();
 
 		const edge: GraphEdge = {
 			id: edgeId,
 			from_node: body.from_node!,
 			to_node: body.to_node!,
-			relationship_type: body.relationship_type || 'related',
-			properties: body.properties || {},
+			relationship_type: body.relationship_type ?? 'related',
+			properties: body.properties ?? {},
 			created_at: timestamp
 		};
 
@@ -531,7 +531,7 @@ export async function traverseGraph(request: Request, env: Env, logger: Logger):
 		};
 		logger.performance('parse_traversal_body', Date.now() - parseStart);
 
-		const maxDepth = body.max_depth || 3;
+		const maxDepth = body.max_depth ?? 3;
 		const visited = new Set<string>();
 		const result: { nodes: GraphNode[], edges: GraphEdge[], paths: string[][] } = {
 			nodes: [],
@@ -595,7 +595,7 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 
 		const updatedNode: GraphNode = {
 			id: nodeId,
-			type: body.type || existing.type as string,
+			type: body.type ?? existing.type as string,
 			properties: {...JSON.parse(existing.properties as string), ...body.properties},
 			created_at: existing.created_at as string,
 			updated_at: timestamp
@@ -693,7 +693,7 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger): Prom
 			   OR to_node = ?
 		`).bind(nodeId, nodeId).run();
 		logger.performance('delete_connected_edges', Date.now() - edgesStart, {
-			edgeCount: connectedEdges.results?.length || 0
+			edgeCount: connectedEdges.results?.length ?? 0
 		});
 
 		// Delete the node
@@ -733,7 +733,7 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger): Prom
 
 		const result = {
 			deleted: nodeId,
-			deleted_edges: connectedEdges.results?.length || 0,
+			deleted_edges: connectedEdges.results?.length ?? 0,
 			timestamp: new Date().toISOString()
 		};
 
