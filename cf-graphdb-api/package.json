@@ -23,7 +23,7 @@
 		"lint:fix": "eslint src/**/*.ts --fix",
 		"type-check": "tsc --noEmit",
 		"ci:dev": "npm run lint && npm run type-check && npm run test:dev",
-		"ci:stage": "npm run lint && npm run type-check && npm run test:coverage:stage",
+		"ci:stage": "npm run ci && npm run lint && npm run type-check && npm run test:coverage:stage",
 		"ci:prod": "npm run lint && npm run type-check && echo 'No tests run on production'",
 		"prebuild": "npm run typegen",
 		"preinstall": "npx only-allow npm",
