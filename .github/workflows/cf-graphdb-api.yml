@@ -30,6 +30,9 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'cf-graphdb-api/package-lock.json'
+      - run: jq --arg secret "$JWT_SECRET" '.env.stage.vars.JWT_SECRET = $secret' wrangler.jsonc > temp && mv temp wrangler.jsonc
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
       - name: Stage CI
         run: npm run ci:stage
         env:

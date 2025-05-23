@@ -1,6 +1,5 @@
 // vitest.config.mts
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
-console.log('[Vitest] Binding JWT_SECRET:', process.env.JWT_SECRET?.slice(0, 6));
 const environment = process.env.WRANGLER_ENV ?? 'dev';
 export default defineWorkersConfig({
 	test: {
