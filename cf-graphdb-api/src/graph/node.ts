@@ -12,53 +12,54 @@ export async function getNode(nodeId: string, env: Env, logger: Logger, params: 
 		let nodeData = await env.GRAPH_KV.get(`node:${orgId}:${nodeId}`);
 		logger.performance('kv_lookup', Date.now() - kvStart, {hit: !!nodeData});
 
-		if (!nodeData) {
-			logger.debug('Node not found in KV, checking D1', {orgId, nodeId});
-
-			// Fallback to D1
-			const d1Start = Date.now();
-			const result = await env.GRAPH_DB.prepare(`
-				SELECT *
-				FROM ${NODES_TABLE}
-				WHERE id = ? AND org_id = ?
-			`).bind(nodeId, orgId).first();
-			logger.performance('d1_lookup', Date.now() - d1Start, {found: !!result});
-
-			if (!result) {
-				logger.warn('Node not found', {orgId, nodeId});
-				return new Response('Node not found', {status: 404});
-			}
-
-			const node: GraphNode = {
-				id: result.id as string,
-				org_id: result.org_id as string,
-				type: result.type as string,
-				properties: JSON.parse(result.properties as string),
-				created_at: result.created_at as string,
-				updated_at: result.updated_at as string,
-				created_by: result.created_by as string,
-				updated_by: result.updated_by as string,
-				user_agent: result.user_agent as string,
-				client_ip: result.client_ip as string
-			};
-
-			// Cache in KV for future requests
-			const cacheStart = Date.now();
-			await env.GRAPH_KV.put(`node:${orgId}:${nodeId}`, JSON.stringify(node));
-			logger.performance('kv_cache_backfill', Date.now() - cacheStart);
-			nodeData = JSON.stringify(node);
-			logger.debug('Node retrieved from D1 and cached', {orgId, nodeId});
-			return new Response(nodeData, {
-				headers: {'Content-Type': 'application/json', 'X-Node-Cache': 'MISS'}
-			})
-		} else {
+		if (nodeData) {
+			// Node found in KV cache
 			logger.debug('Node retrieved from KV cache', {orgId, nodeId});
+
+			return new Response(nodeData, {
+				headers: {'Content-Type': 'application/json', 'X-Node-Cache': 'HIT'}
+			});
 		}
 
-		logger.info('Node retrieved successfully', {orgId, nodeId});
+		// If we get here, it means the node was not in KV
+		logger.debug('Node not found in KV, checking D1', {orgId, nodeId});
+
+		// Fallback to D1
+		const d1Start = Date.now();
+		const result = await env.GRAPH_DB.prepare(`
+			SELECT *
+			FROM ${NODES_TABLE}
+			WHERE id = ? AND org_id = ?
+		`).bind(nodeId, orgId).first();
+		logger.performance('d1_lookup', Date.now() - d1Start, {found: !!result});
+
+		if (!result) {
+			logger.warn('Node not found', {orgId, nodeId});
+			return new Response('Node not found', {status: 404});
+		}
+
+		const node: GraphNode = {
+			id: result.id as string,
+			org_id: result.org_id as string,
+			type: result.type as string,
+			properties: JSON.parse(result.properties as string),
+			created_at: result.created_at as string,
+			updated_at: result.updated_at as string,
+			created_by: result.created_by as string,
+			updated_by: result.updated_by as string,
+			user_agent: result.user_agent as string,
+			client_ip: result.client_ip as string
+		};
+
+		// Cache in KV for future requests
+		const cacheStart = Date.now();
+		await env.GRAPH_KV.put(`node:${orgId}:${nodeId}`, JSON.stringify(node));
+		logger.performance('kv_cache_backfill', Date.now() - cacheStart);
+		nodeData = JSON.stringify(node);
+		logger.debug('Node retrieved from D1 and cached', {orgId, nodeId});
 
 		return new Response(nodeData, {
-			headers: {'Content-Type': 'application/json', 'X-Node-Cache': 'HIT'}
+			headers: {'Content-Type': 'application/json', 'X-Node-Cache': 'MISS'}
 		});
 	} catch (error) {
 		logger.error('Failed to retrieve node', {orgId, nodeId});
@@ -124,15 +125,6 @@ export async function createNode(request: Request, env: Env, logger: Logger, par
 		const kvStart = Date.now();
 		await env.GRAPH_KV.put(`node:${orgId}:${nodeId}`, JSON.stringify(node));
 		logger.performance('kv_cache_node', Date.now() - kvStart);
-
-		// Store node type mapping for efficient queries
-		const typeStart = Date.now();
-		const typeKey = `type:${orgId}:${node.type}`;
-		const existingNodes = await env.GRAPH_KV.get(typeKey);
-		const nodeIds = existingNodes ? JSON.parse(existingNodes) : [];
-		nodeIds.push(nodeId);
-		await env.GRAPH_KV.put(typeKey, JSON.stringify(nodeIds));
-		logger.performance('kv_update_type_mapping', Date.now() - typeStart);
 
 		logger.info('Node created successfully', {orgId, nodeId, type: node.type, createdBy: userId});
 
@@ -286,8 +278,6 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 
 		// Update type mapping if the type changed
 		if (body.type && body.type !== existing.type) {
-			const typeMappingStart = Date.now();
-
 			// Remove from old type mapping
 			const oldTypeKey = `type:${orgId}:${existing.type}`;
 			const oldNodes = await env.GRAPH_KV.get(oldTypeKey);
@@ -296,16 +286,6 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 				await env.GRAPH_KV.put(oldTypeKey, JSON.stringify(oldNodeIds));
 			}
 
-			// Add to new type mapping
-			const newTypeKey = `type:${orgId}:${body.type}`;
-			const newNodes = await env.GRAPH_KV.get(newTypeKey);
-			const newNodeIds = newNodes ? JSON.parse(newNodes) : [];
-			if (!newNodeIds.includes(nodeId)) {
-				newNodeIds.push(nodeId);
-				await env.GRAPH_KV.put(newTypeKey, JSON.stringify(newNodeIds));
-			}
-
-			logger.performance('update_type_mapping', Date.now() - typeMappingStart);
 		}
 
 		logger.info('Node updated successfully', {orgId, nodeId, type: updatedNode.type, updatedBy: userId});
@@ -365,7 +345,6 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 		logger.performance('delete_node', Date.now() - nodeDeleteStart);
 
 		// Clean up KV cache
-		const kvCleanupStart = Date.now();
 		await Promise.all([
 			env.GRAPH_KV.delete(`node:${orgId}:${nodeId}`),
 			env.GRAPH_KV.delete(`adj:out:${orgId}:${nodeId}`),
@@ -379,16 +358,6 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			}
 		}
 
-		// Remove from type mapping
-		const nodeType = existingNode.type as string;
-		const typeKey = `type:${orgId}:${nodeType}`;
-		const existingNodes = await env.GRAPH_KV.get(typeKey);
-		if (existingNodes) {
-			const nodeIds = JSON.parse(existingNodes).filter((id: string) => id !== nodeId);
-			await env.GRAPH_KV.put(typeKey, JSON.stringify(nodeIds));
-		}
-
-		logger.performance('kv_cleanup', Date.now() - kvCleanupStart);
 
 		const result = {
 			deleted: nodeId,

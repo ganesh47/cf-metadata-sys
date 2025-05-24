@@ -190,7 +190,7 @@ export async function getEdge(edgeId: string, env: Env, logger: Logger, params: 
 	try {
 		// Try to get from KV cache first
 		const cacheStart = Date.now();
-		const cachedEdge = await env.GRAPH_KV.get(`edge:${orgId}:${edgeId}`);
+		const cachedEdge = await env.GRAPH_KV.get(`adj:in:${orgId}:${edgeId}`);
 		logger.performance('kv_edge_lookup', Date.now() - cacheStart);
 
 		if (cachedEdge) {
@@ -235,8 +235,10 @@ export async function getEdge(edgeId: string, env: Env, logger: Logger, params: 
 			client_ip: result.client_ip as string
 		};
 
-		// Update cache
-		await env.GRAPH_KV.put(`edge:${orgId}:${edgeId}`, JSON.stringify(edge));
+		// Cache edge in KV storage with adj:in: prefix
+		const kvStart = Date.now();
+		await env.GRAPH_KV.put(`adj:in:${orgId}:${edgeId}`, JSON.stringify(edge));
+		logger.performance('kv_cache_edge', Date.now() - kvStart);
 
 		logger.info('Edge retrieved successfully', { orgId, edgeId });
 
@@ -336,8 +338,20 @@ export async function updateEdge(
 			client_ip: clientIp
 		};
 
-		// Update KV cache
-		await env.GRAPH_KV.put(`edge:${orgId}:${edgeId}`, JSON.stringify(updatedEdge));
+		// Update KV cache for both adj:in: and adj:out: prefixes
+		const kvStart = Date.now();
+		await Promise.all([
+			env.GRAPH_KV.put(`adj:in:${orgId}:${edgeId}`, JSON.stringify(updatedEdge)),
+			env.GRAPH_KV.put(`adj:out:${orgId}:${edgeId}`, JSON.stringify(updatedEdge))
+		]);
+		logger.performance('kv_cache_edge', Date.now() - kvStart);
+
+		// Update adjacency lists for fast traversal if relationship type changed
+		if (updates.relationship_type && updates.relationship_type !== existingEdge.relationship_type) {
+			const adjStart = Date.now();
+			await updateAdjacencyList(env, updatedEdge.from_node, updatedEdge.to_node, updatedEdge.relationship_type, logger, orgId);
+			logger.performance('update_adjacency_lists', Date.now() - adjStart);
+		}
 
 		logger.info('Edge updated successfully', {
 			orgId,
@@ -389,8 +403,13 @@ export async function deleteEdge(
 		`).bind(edgeId, orgId).run();
 		logger.performance('d1_delete_edge', Date.now() - d1Start);
 
-		// Delete from KV cache
-		await env.GRAPH_KV.delete(`edge:${orgId}:${edgeId}`);
+		// Delete from KV caches (adj:in: and adj:out:)
+		const kvStart = Date.now();
+		await Promise.all([
+			env.GRAPH_KV.delete(`adj:in:${orgId}:${edgeId}`),
+			env.GRAPH_KV.delete(`adj:out:${orgId}:${edgeId}`)
+		]);
+		logger.performance('kv_delete_edge_cache', Date.now() - kvStart);
 
 		// Update adjacency lists - need to implement removal logic
 		// This would require reading, modifying, and writing back the adjacency lists
