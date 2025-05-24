@@ -11,19 +11,6 @@ import {createEdge, getEdges} from "./graph/edge";
 import type {ExecutionContext} from '@cloudflare/workers-types';
 import {jwtVerify} from 'jose';
 
-// Define user context interface
-interface UserContext {
-	id: string;
-	email: string;
-	permissions?: string; // Added permissions field
-	[key: string]: unknown;
-}
-
-// Extend TraceContext to include user information
-interface AuthenticatedTraceContext extends TraceContext {
-	user?: UserContext;
-}
-
 // Define route handler interface with updated context
 type RouteHandler = (
 	request: Request,
@@ -101,146 +88,150 @@ export const validateJwt = async (token: string, env: Env, logger: Logger): Prom
 	}
 };
 
-// Helper function to check if a user has permission for a specific route
-export const hasPermission = (permissions: string, orgId: string, method: string): boolean => {
+export function hasPermission(permissions: string, orgId: string, requiredLevel: string): boolean {
   if (!permissions) return false;
 
-  // Parse permission format "<scope>:<permission>"
-  const permissionEntries = permissions.split(',').map(p => p.trim());
+  const permissionScopes = permissions.split(',');
 
-  for (const entry of permissionEntries) {
-    const [scope, permission] = entry.split(':');
+  for (const scope of permissionScopes) {
+    const [scopeOrg, level] = scope.split(':');
 
-    // Check if scope matches (wildcard or specific org)
-    const scopeMatches = scope === '*' || scope === orgId;
-    if (!scopeMatches) continue;
+    // Check for global wildcard permission
+    if (scopeOrg === '*' && level === '*') return true;
 
-    // Check if permission matches (wildcard or specific permission)
-    if (permission === '*') return true;
+    // Check for org wildcard permission with a sufficient level
+    if (scopeOrg === '*' && hasRequiredLevel(level, requiredLevel)) return true;
 
-    // Map HTTP methods to permission types
-    const requiredPermission =
-      method === 'GET' ? 'read' :
-      (method === 'POST' || method === 'PUT' || method === 'PATCH') ? 'write' :
-      method === 'DELETE' ? 'write' : 'audit';
-
-    // Allow higher permissions to access lower ones (write can read, audit can do anything)
-    if (permission === 'audit') return true;
-    if (permission === 'write' && (requiredPermission === 'read' || requiredPermission === 'write')) return true;
-    if (permission === 'read' && requiredPermission === 'read') return true;
+    // Check for exact org with sufficient level
+    if (scopeOrg === orgId && hasRequiredLevel(level, requiredLevel)) return true;
   }
 
   return false;
-};
+}
 
-// Authentication middleware with proper JWT validation and permission checking
-export const authenticate = async (
+function hasRequiredLevel(userLevel: string, requiredLevel: string): boolean {
+  console.log(userLevel, requiredLevel);
+  if (userLevel === '*') return true;
+
+  const levels = ['read', 'write', 'audit'];
+  const userLevelIndex = levels.indexOf(userLevel);
+  const requiredLevelIndex = levels.indexOf(requiredLevel);
+  if (userLevelIndex === -1 || requiredLevelIndex === -1) return false;
+  return userLevelIndex >= requiredLevelIndex;
+}
+
+export async function authenticate(
   request: Request,
   env: Env,
   logger: Logger,
   next: (request: Request) => Promise<Response>,
   params?: Record<string, string>
-): Promise<Response> => {
+): Promise<Response> {
+  // Get the JWT token from the Authorization header
   const authHeader = request.headers.get('Authorization');
-
-  if (!authHeader) {
-    logger.warn('Authentication failed: Missing Authorization header');
-    return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {status: 401});
-  }
-
-  try {
-    // Extract token from Authorization header (Bearer token)
-    const token = authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : authHeader;
-
-    // Validate the JWT with proper signature verification
-    const {valid, user, error} = await validateJwt(token, env, logger);
-
-    if (!valid || !user) {
-      logger.warn('Authentication failed: Invalid or expired token', {
-        tokenId: token.slice(0, 10) + '...',
-        error
-      });
-      return new Response(JSON.stringify({message: 'Unauthorized: Invalid authentication token'}), {status: 401});
-    }
-
-    // Check permissions if we're accessing an org-specific route
-    if (params?.orgId && request.method) {
-      // Verify user has permission to access this org with this method
-      if (!hasPermission(user.permissions || '', params.orgId, request.method)) {
-        logger.warn('Authorization failed: Insufficient permissions', {
-          userId: user.id,
-          orgId: params.orgId,
-          method: request.method,
-          permissions: user.permissions
-        });
-        return new Response(JSON.stringify({
-          message: 'Forbidden: Insufficient permissions to access this resource'
-        }), {status: 403});
-      }
-    }
-
-    // Update trace context with user info
-    if (logger.context && typeof logger.context === 'object') {
-      (logger.context as AuthenticatedTraceContext).user = user;
-
-      // Also add user info to the metadata for logging
-      logger.context.metadata = {
-        ...logger.context.metadata,
-        userId: user.id,
-        userEmail: user.email,
-        permissions: user.permissions
-      };
-    }
-
-    logger.debug('Authentication successful', {
-      userId: user.id,
-      permissions: user.permissions,
-      orgId: params?.orgId
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ message: 'Unauthorized: Missing authentication token' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
     });
-
-    // Create a new request with user context in headers
-    const enhancedRequest = new Request(request);
-    enhancedRequest.headers.set('X-User-ID', user.id);
-    enhancedRequest.headers.set('X-User-Email', user.email);
-    if (user.permissions) {
-      enhancedRequest.headers.set('X-User-Permissions', user.permissions);
-    }
-
-    return await next(enhancedRequest);
-  } catch (error) {
-    logger.error('Authentication error', error);
-    return new Response(JSON.stringify({message: 'Authentication error'}), {status: 500});
   }
-};
+
+  const token = authHeader.split(' ')[1];
+  const result = await validateJwt(token, env, logger);
+
+  if (!result.valid || !result.user) {
+    return new Response(JSON.stringify({ message: 'Unauthorized: Invalid authentication token' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Get required permission for this route and method
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
+
+  const match = matchRoute(path);
+  if (!match) {
+    return new Response(JSON.stringify({ message: 'Not Found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const { pattern } = match;
+  const routeConfig = routeMap[pattern][method];
+
+  if (!routeConfig) {
+    return new Response(JSON.stringify({ message: 'Method Not Allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const { requiredPermission } = routeConfig;
+  const orgId = params?.orgId || '';
+
+  // Check if user has the required permission for this organization
+  if (!hasPermission(result.user.permissions || '', orgId, requiredPermission)) {
+    return new Response(JSON.stringify({
+      message: 'Forbidden: Insufficient permissions to access this resource'
+    }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Add user information to request headers
+  const enhancedRequest = new Request(request);
+  enhancedRequest.headers.set('X-User-ID', result.user.id);
+  enhancedRequest.headers.set('X-User-Email', result.user.email);
+  if (result.user.permissions) {
+    enhancedRequest.headers.set('X-User-Permissions', result.user.permissions);
+  }
+
+  // Pass the authenticated request to the next handler
+  return next(enhancedRequest);
+}
 
 // Create a route map to match paths and methods to handlers
-const routeMap: Record<string, Record<string, RouteHandler>> = {
+const routeMap: Record<string, Record<string, { handler: RouteHandler, requiredPermission: string }>> = {
 	'/:orgId/nodes': {
-		'POST': createNode,
-		'GET': getNodes
+		'POST': { handler: createNode, requiredPermission: 'write' },
+		'GET': { handler: getNodes, requiredPermission: 'read' }
 	},
 	'/:orgId/nodes/:id': {
-		'GET': async (request, env, logger, params) => getNode(params?.id || '', env, logger),
-		'PUT': async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger),
-		'DELETE': async (request, env, logger, params) => deleteNode(params?.id || '', env, logger)
+		'GET': {
+			handler: async (request, env, logger, params) => getNode(params?.id || '', env, logger),
+			requiredPermission: 'read'
+		},
+		'PUT': {
+			handler: async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger),
+			requiredPermission: 'write'
+		},
+		'DELETE': {
+			handler: async (request, env, logger, params) => deleteNode(params?.id || '', env, logger),
+			requiredPermission: 'write'
+		}
 	},
 	'/:orgId/edges': {
-		'POST': createEdge,
-		'GET': getEdges
+		'POST': { handler: createEdge, requiredPermission: 'write' },
+		'GET': { handler: getEdges, requiredPermission: 'read' }
 	},
 	'/:orgId/query': {
-		'POST': queryGraph
+		'POST': { handler: queryGraph, requiredPermission: 'read' }
 	},
 	'/:orgId/traverse': {
-		'POST': traverseGraph
+		'POST': { handler: traverseGraph, requiredPermission: 'read' }
 	},
 	'/:orgId/metadata/export': {
-		'GET': async (request, env, logger) => exportMetadata(env, logger)
+		'GET': {
+			handler: async (request, env, logger) => exportMetadata(env, logger),
+			requiredPermission: 'read'
+		}
 	},
 	'/:orgId/metadata/import': {
-		'POST': importMetadata
+		'POST': { handler: importMetadata, requiredPermission: 'write' }
 	}
 };
 
@@ -333,12 +324,12 @@ const handleRequest = async (path: string, method: string, request: Request, env
 		if (handlers[method]) {
 			// Check if route is public or requires authentication
 			if (publicRoutes?.includes(path)) {
-				return await handlers[method](request, env, logger, params);
+				return await handlers[method].handler(request, env, logger, params);
 			} else {
 				// Apply authentication middleware to protected routes with params
 				return await applyMiddleware(
 					(req, env, logger, next, params) => authenticate(req, env, logger, next, params),
-					handlers[method],
+					handlers[method].handler,
 					request,
 					env,
 					logger,

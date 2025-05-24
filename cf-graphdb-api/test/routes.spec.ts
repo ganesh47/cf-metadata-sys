@@ -12,25 +12,46 @@ vi.mock('jose', () => {
 });
 
 // Mock route map for testing
-const testRouteMap: Record<string, Record<string, any>> = {
+const testRouteMap: Record<string, Record<string, { handler: any, requiredPermission: string }>> = {
 	'/:orgId/nodes': {
-		'GET': vi.fn().mockResolvedValue(new Response('Node list', { status: 200 })),
-		'POST': vi.fn().mockResolvedValue(new Response('Node created', { status: 201 }))
+		'GET': {
+			handler: vi.fn().mockResolvedValue(new Response('Node list', {status: 200})),
+			requiredPermission: 'read'
+		},
+		'POST': {
+			handler: vi.fn().mockResolvedValue(new Response('Node created', {status: 201})),
+			requiredPermission: 'write'
+		}
 	},
 	'/:orgId/nodes/:id': {
-		'GET': vi.fn().mockResolvedValue(new Response('Node details', { status: 200 })),
-		'PUT': vi.fn().mockResolvedValue(new Response('Node updated', { status: 200 })),
-		'DELETE': vi.fn().mockResolvedValue(new Response('Node deleted', { status: 200 }))
+		'GET': {
+			handler: vi.fn().mockResolvedValue(new Response('Node details', {status: 200})),
+			requiredPermission: 'read'
+		},
+		'PUT': {
+			handler: vi.fn().mockResolvedValue(new Response('Node updated', {status: 200})),
+			requiredPermission: 'write'
+		},
+		'DELETE': {
+			handler: vi.fn().mockResolvedValue(new Response('Node deleted', {status: 200})),
+			requiredPermission: 'write'
+		}
 	},
 	'/:orgId/edges': {
-		'GET': vi.fn().mockResolvedValue(new Response('Edge list', { status: 200 })),
-		'POST': vi.fn().mockResolvedValue(new Response('Edge created', { status: 201 }))
+		'GET': {
+			handler: vi.fn().mockResolvedValue(new Response('Edge list', {status: 200})),
+			requiredPermission: 'read'
+		},
+		'POST': {
+			handler: vi.fn().mockResolvedValue(new Response('Edge created', {status: 201})),
+			requiredPermission: 'write'
+		}
 	}
 };
 
 // Mock the global routeMap variable since we're importing the real functions
 vi.mock('./index', async (importOriginal) => {
-	const originalModule:any = await importOriginal();
+	const originalModule: any = await importOriginal();
 	return {
 		...originalModule,
 		routeMap: testRouteMap,
@@ -39,7 +60,7 @@ vi.mock('./index', async (importOriginal) => {
 
 describe('JWT Authentication and Permissions', () => {
 	let env: any;
-	const {initStart,logger}=prepareLogger();
+	const {initStart, logger} = prepareLogger();
 	console.log(initStart)
 	let mockNext: (request: Request) => Promise<Response>;
 
@@ -48,10 +69,10 @@ describe('JWT Authentication and Permissions', () => {
 		vi.resetAllMocks();
 
 		// Setup test environment
-		env = { JWT_SECRET: 'test-secret' };
+		env = {JWT_SECRET: 'test-secret'};
 
 
-		mockNext = vi.fn().mockResolvedValue(new Response('Success', { status: 200 }));
+		mockNext = vi.fn().mockResolvedValue(new Response('Success', {status: 200}));
 
 		// Mock jwtVerify to return a valid payload by default
 		(jwtVerify as any).mockResolvedValue({
@@ -113,49 +134,48 @@ describe('JWT Authentication and Permissions', () => {
 
 	describe('hasPermission', () => {
 		it('should return true for wildcard scope', () => {
-			expect(hasPermission('*:read', 'org1', 'GET')).toBe(true);
+			expect(hasPermission('*:read', 'org1', 'read')).toBe(true);
 		});
 
 		it('should return true for wildcard permission', () => {
-			expect(hasPermission('org1:*', 'org1', 'GET')).toBe(true);
-			expect(hasPermission('org1:*', 'org1', 'POST')).toBe(true);
-			expect(hasPermission('org1:*', 'org1', 'DELETE')).toBe(true);
+			expect(hasPermission('org1:*', 'org1', 'read')).toBe(true);
+			expect(hasPermission('org1:*', 'org1', 'write')).toBe(true);
+			expect(hasPermission('org1:*', 'org1', 'audit')).toBe(true);
 		});
 
 		it('should return true for global wildcard permission', () => {
-			expect(hasPermission('*:*', 'org1', 'GET')).toBe(true);
-			expect(hasPermission('*:*', 'org2', 'POST')).toBe(true);
+			expect(hasPermission('*:*', 'org1', 'read')).toBe(true);
+			expect(hasPermission('*:*', 'org2', 'write')).toBe(true);
 		});
 
 		it('should return true for matching specific org and permission', () => {
-			expect(hasPermission('org1:read', 'org1', 'GET')).toBe(true);
-			expect(hasPermission('org1:write', 'org1', 'POST')).toBe(true);
-			expect(hasPermission('org1:write', 'org1', 'DELETE')).toBe(true);
+			expect(hasPermission('org1:read', 'org1', 'read')).toBe(true);
+			expect(hasPermission('org1:write', 'org1', 'write')).toBe(true);
 		});
 
 		it('should return false for non-matching org', () => {
-			expect(hasPermission('org1:read', 'org2', 'GET')).toBe(false);
-			expect(hasPermission('org1:write', 'org2', 'POST')).toBe(false);
+			expect(hasPermission('org1:read', 'org2', 'read')).toBe(false);
+			expect(hasPermission('org1:write', 'org2', 'write')).toBe(false);
 		});
 
 		it('should return false for insufficient permission level', () => {
-			expect(hasPermission('org1:read', 'org1', 'POST')).toBe(false);
-			expect(hasPermission('org1:read', 'org1', 'DELETE')).toBe(false);
+			expect(hasPermission('org1:read', 'org1', 'write')).toBe(false);
+			expect(hasPermission('org1:read', 'org1', 'audit')).toBe(false);
 		});
 
 		it('should return true for higher permission levels', () => {
-			expect(hasPermission('org1:write', 'org1', 'GET')).toBe(true); // write can read
-			expect(hasPermission('org1:audit', 'org1', 'GET')).toBe(true); // audit can read
-			expect(hasPermission('org1:audit', 'org1', 'POST')).toBe(true); // audit can write
+			expect(hasPermission('org1:write', 'org1', 'read')).toBe(true); // write can read
+			expect(hasPermission('org1:audit', 'org1', 'read')).toBe(true); // audit can read
+			expect(hasPermission('org1:audit', 'org1', 'write')).toBe(true); // audit can write
 		});
 
 		it('should return true for multiple permissions when one matches', () => {
-			expect(hasPermission('org1:read,org2:write', 'org1', 'GET')).toBe(true);
-			expect(hasPermission('org1:read,org2:write', 'org2', 'POST')).toBe(true);
+			expect(hasPermission('org1:read,org2:write', 'org1', 'read')).toBe(true);
+			expect(hasPermission('org1:read,org2:write', 'org2', 'write')).toBe(true);
 		});
 
 		it('should return false for empty permissions', () => {
-			expect(hasPermission('', 'org1', 'GET')).toBe(false);
+			expect(hasPermission('', 'org1', 'read')).toBe(false);
 		});
 	});
 
@@ -165,7 +185,7 @@ describe('JWT Authentication and Permissions', () => {
 
 			expect(result).toEqual({
 				pattern: '/:orgId/nodes',
-				params: { orgId: 'org1' }
+				params: {orgId: 'org1'}
 			});
 		});
 
@@ -174,7 +194,7 @@ describe('JWT Authentication and Permissions', () => {
 
 			expect(result).toEqual({
 				pattern: '/:orgId/nodes/:id',
-				params: { orgId: 'org1', id: 'node123' }
+				params: {orgId: 'org1', id: 'node123'}
 			});
 		});
 
@@ -200,7 +220,7 @@ describe('JWT Authentication and Permissions', () => {
 			(jwtVerify as any).mockRejectedValueOnce(new Error('Invalid token'));
 
 			const request = new Request('https://example.com/org1/nodes', {
-				headers: { 'Authorization': 'Bearer invalid.token' }
+				headers: {'Authorization': 'Bearer invalid.token'}
 			});
 
 			const response = await authenticate(request, env, logger, mockNext);
@@ -222,17 +242,14 @@ describe('JWT Authentication and Permissions', () => {
 
 			const request = new Request('https://example.com/org2/nodes', {
 				method: 'GET',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const response = await authenticate(
 				request,
 				env,
 				logger,
-				mockNext,
-				{ orgId: 'org2' } // trying to access org2
-			);
-
+				mockNext)
 			expect(response.status).toBe(403);
 			expect(await response.json()).toEqual({
 				message: 'Forbidden: Insufficient permissions to access this resource'
@@ -250,7 +267,7 @@ describe('JWT Authentication and Permissions', () => {
 
 			const request = new Request('https://example.com/org1/nodes', {
 				method: 'POST', // trying to write
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const response = await authenticate(
@@ -258,7 +275,7 @@ describe('JWT Authentication and Permissions', () => {
 				env,
 				logger,
 				mockNext,
-				{ orgId: 'org1' }
+				{orgId: 'org1'}
 			);
 
 			expect(response.status).toBe(403);
@@ -270,7 +287,7 @@ describe('JWT Authentication and Permissions', () => {
 		it('should call next() and add user headers when authentication succeeds', async () => {
 			const request = new Request('https://example.com/org1/nodes', {
 				method: 'GET',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			await authenticate(
@@ -278,7 +295,7 @@ describe('JWT Authentication and Permissions', () => {
 				env,
 				logger,
 				mockNext,
-				{ orgId: 'org1' }
+				{orgId: 'org1'}
 			);
 
 			expect(mockNext).toHaveBeenCalled();
@@ -297,7 +314,7 @@ describe('JWT Authentication and Permissions', () => {
 
 			const request = new Request('https://example.com/any-org/nodes', {
 				method: 'POST',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const response = await authenticate(
@@ -305,7 +322,7 @@ describe('JWT Authentication and Permissions', () => {
 				env,
 				logger,
 				mockNext,
-				{ orgId: 'any-org' }
+				{orgId: 'any-org'}
 			);
 
 			expect(response.status).toBe(200);
@@ -323,10 +340,10 @@ describe('JWT Authentication and Permissions', () => {
 			// Test for org1:read
 			const readRequest = new Request('https://example.com/org1/nodes', {
 				method: 'GET',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
-			await authenticate(readRequest, env, logger, mockNext, { orgId: 'org1' });
+			await authenticate(readRequest, env, logger, mockNext, {orgId: 'org1'});
 			expect(mockNext).toHaveBeenCalled();
 			vi.clearAllMocks();
 
@@ -342,10 +359,10 @@ describe('JWT Authentication and Permissions', () => {
 			// Test for org2:write
 			const writeRequest = new Request('https://example.com/org2/nodes', {
 				method: 'POST',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
-			await authenticate(writeRequest, env, logger, mockNext, { orgId: 'org2' });
+			await authenticate(writeRequest, env, logger, mockNext, {orgId: 'org2'});
 			expect(mockNext).toHaveBeenCalled();
 		});
 	});
@@ -355,18 +372,22 @@ describe('JWT Authentication and Permissions', () => {
 			// Set up a mock fetch event
 			const request = new Request('https://example.com/org1/nodes', {
 				method: 'GET',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			// Mock the handleRequest function by directly testing its components
 			const match = matchRoute('/org1/nodes');
 			expect(match).not.toBeNull();
 
-			const { pattern, params } = match!;
+			const {pattern, params} = match!;
 			expect(pattern).toBe('/:orgId/nodes');
-			expect(params).toEqual({ orgId: 'org1' });
+			expect(params).toEqual({orgId: 'org1'});
 
-			// Test auth middleware with the extracted params
+			// Get required permission for this route
+			const requiredPermission = testRouteMap[pattern]['GET'].requiredPermission;
+			expect(requiredPermission).toBe('read');
+
+			// Test auth middleware with the extracted params and required permission
 			const response = await authenticate(request, env, logger, mockNext, params);
 			expect(response.status).toBe(200);
 
@@ -377,15 +398,19 @@ describe('JWT Authentication and Permissions', () => {
 		it('should handle specific resource ID extraction correctly', async () => {
 			const request = new Request('https://example.com/org1/nodes/node123', {
 				method: 'GET',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const match = matchRoute('/org1/nodes/node123');
 			expect(match).not.toBeNull();
 
-			const { pattern, params } = match!;
+			const {pattern, params} = match!;
 			expect(pattern).toBe('/:orgId/nodes/:id');
-			expect(params).toEqual({ orgId: 'org1', id: 'node123' });
+			expect(params).toEqual({orgId: 'org1', id: 'node123'});
+
+			// Get required permission for this route
+			const requiredPermission = testRouteMap[pattern]['GET'].requiredPermission;
+			expect(requiredPermission).toBe('read');
 
 			// Make sure these params are passed through auth middleware
 			await authenticate(request, env, logger, mockNext, params);
@@ -404,11 +429,13 @@ describe('JWT Authentication and Permissions', () => {
 			// Test POST to org1 (should succeed with write permission)
 			const writeRequest = new Request('https://example.com/org1/nodes', {
 				method: 'POST',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const match = matchRoute('/org1/nodes');
-			const { params } = match!;
+			const {params} = match!;
+			const requiredPermission = testRouteMap['/:orgId/nodes']['POST'].requiredPermission;
+			expect(requiredPermission).toBe('write');
 
 			const response = await authenticate(writeRequest, env, logger, mockNext, params);
 			expect(response.status).toBe(200);
@@ -425,11 +452,13 @@ describe('JWT Authentication and Permissions', () => {
 
 			const failRequest = new Request('https://example.com/org2/nodes', {
 				method: 'POST',
-				headers: { 'Authorization': 'Bearer valid.token' }
+				headers: {'Authorization': 'Bearer valid.token'}
 			});
 
 			const match2 = matchRoute('/org2/nodes');
-			const { params: params2 } = match2!;
+			const {params: params2} = match2!;
+			const requiredPermission2 = testRouteMap['/:orgId/nodes']['POST'].requiredPermission;
+			expect(requiredPermission2).toBe('write');
 
 			const response2 = await authenticate(failRequest, env, logger, mockNext, params2);
 			expect(response2.status).toBe(403);
