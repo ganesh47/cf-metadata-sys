@@ -128,7 +128,7 @@ describe('/metadata API Worker Tests', async () => {
 		});
 
 		it('should handle missing required fields', async () => {
-			const response = await SELF.fetch('http://localhost/test/edges', {
+			const response = await SELF.fetch('http://localhost/test/edge', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({

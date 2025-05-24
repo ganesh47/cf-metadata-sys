@@ -77,10 +77,13 @@ All endpoints are organization-scoped. The organization ID is specified in the U
 
 ### Edges
 
-| Method | Endpoint | Description | Required Permission |
-|--------|----------|-------------|---------------------|
-| GET | `/:orgId/edges` | List all edges | `read` |
-| POST | `/:orgId/edges` | Create a new edge | `write` |
+| Method       | Endpoint               | Description             | Required Permission |
+|--------------|------------------------|-------------------------|---------------------|
+| GET          | `/:orgId/edges`        | List all edges          | `read`              |
+| POST         | `/:orgId/edge`         | Create a new edge       | `write`             |
+| GET          | `/:orgId/edge/:edgeId` | Create a new edge       | `read`              |
+| PUT or PATCH | `/:orgId/edge/:edgeId` | Update an existing edge | `write`             |
+| DELETE       | `/:orgId/edge/:edgeId` | Delete an existing edge | `write`             |
 
 ### Graph Operations
 

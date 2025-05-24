@@ -7,7 +7,7 @@ import {
 } from "./graph/traversals";
 import {exportMetadata, importMetadata} from "./graph/ops";
 import {createNode, deleteNode, getNode, getNodes, updateNode} from "./graph/node";
-import {createEdge, getEdges} from "./graph/edge";
+import {createEdge, deleteEdge, getEdge, getEdges, updateEdge} from "./graph/edge";
 import type {ExecutionContext} from '@cloudflare/workers-types';
 import {jwtVerify} from 'jose';
 
@@ -214,15 +214,19 @@ const routeMap: Record<string, Record<string, { handler: RouteHandler, requiredP
 		}
 	},
 	'/:orgId/edges': {
-		'POST': {handler: createEdge, requiredPermission: 'write'},
 		'GET': {handler: getEdges, requiredPermission: 'read'}
 	},
-	'/:orgId/query': {
-		'POST': {handler: queryGraph, requiredPermission: 'read'}
+	'/:orgId/edge/:id': {
+		'GET':{handler: async (request, env, logger, params) => {
+				return getEdge(params?.id || '', env, logger, params as OrgParams);
+			}, requiredPermission: 'read'},
+		'PUT':{handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params as OrgParams), requiredPermission: 'write'},
+		'PATCH':{handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params as OrgParams), requiredPermission: 'write'},
+		'DELETE':{handler: async (request, env, logger, params) => deleteEdge(params?.id || '', env, logger, params as OrgParams), requiredPermission: 'write'}
 	},
-	'/:orgId/traverse': {
-		'POST': {handler: traverseGraph, requiredPermission: 'read'}
-	},
+	'/:orgId/edge': {'POST': {handler: createEdge, requiredPermission: 'write'}},
+	'/:orgId/query': {'POST': {handler: queryGraph, requiredPermission: 'read'}},
+	'/:orgId/traverse': {'POST': {handler: traverseGraph, requiredPermission: 'read'}},
 	'/:orgId/metadata/export': {
 		'GET': {
 			handler: async (request, env, logger,params:OrgParams) => exportMetadata(env, logger,params as OrgParams),
@@ -257,7 +261,7 @@ export const matchRoute = (path: string): { pattern: string; params: Record<stri
 				const orgId = parts[1];
 
 				// Handle node ID if present (for '/:orgId/nodes/:id')
-				if (pattern.includes(':id') && path.includes('/nodes/') && parts.length >= 4) {
+				if (pattern.includes(':id') && parts.length >= 4) {
 					const nodeId = parts[3];
 					const patternParts = pattern.split('/');
 					const pathParts = path.split('/');
