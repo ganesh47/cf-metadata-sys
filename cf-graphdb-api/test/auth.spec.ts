@@ -1,4 +1,4 @@
-// Modify your index.spec.ts to add these imports and hooks
+// Modify your ops.spec.ts to add these imports and hooks
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData, prepareLogger} from './setup';
@@ -9,7 +9,7 @@ import {Logger} from "../src/logger/logger";
 import {SignJWT} from 'jose';
 import {TextEncoder} from 'util';
 
-export async function createJwt(eenv:Env) {
+export async function createJwt(eenv:Env,permissions:string) {
 	const secret = eenv.JWT_SECRET;
 	expect(secret).toBeDefined();
 
@@ -19,7 +19,8 @@ export async function createJwt(eenv:Env) {
 	// Create a payload with user data
 	const payload = {
 		id: "1234",
-		email: "test@example.com"
+		email: "test@example.com",
+		permissions: permissions
 	};
 
 	// Sign a new JWT with the secret and payload
@@ -46,7 +47,7 @@ describe('Auth GraphDB Worker Tests', () => {
 	describe('Authentication', () => {
 		it('should return 401 when no authentication token is provided', async () => {
 			// Try to access a protected route without a token
-			const response = await SELF.fetch('http://localhost/nodes', {
+			const response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'GET',
 				headers: {'Content-Type': 'application/json'}
 				// No Authorization header
@@ -59,7 +60,7 @@ describe('Auth GraphDB Worker Tests', () => {
 		});
 		it('should return 404 for an non-existing route', async () => {
 			// Try to access a protected route without a token
-			const response = await SELF.fetch('http://localhost/zydf', {
+			const response = await SELF.fetch('http://localhost/test/zydf', {
 				method: 'GET',
 				headers: {'Content-Type': 'application/json'}
 				// No Authorization header
@@ -71,7 +72,7 @@ describe('Auth GraphDB Worker Tests', () => {
 
 		it('should return 401 when an invalid authentication token is provided', async () => {
 			// Try to access a protected route with an invalid token
-			const response = await SELF.fetch('http://localhost/nodes', {
+			const response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',
@@ -90,10 +91,10 @@ describe('Auth GraphDB Worker Tests', () => {
 			const eenv = env as any;
 
 			// Get the JWT_SECRET from environment
-			const validToken = await createJwt(eenv);
+			const validToken = await createJwt(eenv,"test:*");
 
 			// Try to access a protected route with the valid token
-			const response = await SELF.fetch('http://localhost/nodes', {
+			const response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',

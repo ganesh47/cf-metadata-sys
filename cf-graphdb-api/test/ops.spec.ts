@@ -1,4 +1,4 @@
-// Modify your index.spec.ts to add these imports and hooks
+// Modify your ops.spec.ts to add these imports and hooks
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData, prepareLogger} from './setup';
@@ -11,7 +11,7 @@ import {Env} from "../src/types/graph";
 describe('/metadata API Worker Tests', async () => {
 	const eenv = env as Env
 	const {initStart, logger} = prepareLogger();
-	const validToken = await createJwt(eenv);
+	const validToken = await createJwt(eenv,"test:*");
 	const importData = {
 		nodes: [
 			{
@@ -61,7 +61,7 @@ describe('/metadata API Worker Tests', async () => {
 	describe('Metadata Operations', () => {
 		it('should import metadata', async () => {
 
-			const response = await SELF.fetch('http://localhost/metadata/import', {
+			const response = await SELF.fetch('http://localhost/test/metadata/import', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(importData)
@@ -74,7 +74,7 @@ describe('/metadata API Worker Tests', async () => {
 			expect(result.imported_edges).toBe(2);
 
 			// Verify the imported node exists
-			const nodeResponse = await SELF.fetch('http://localhost/nodes/import-test-1', {
+			const nodeResponse = await SELF.fetch('http://localhost/test/nodes/import-test-1', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -84,7 +84,7 @@ describe('/metadata API Worker Tests', async () => {
 			const node = await nodeResponse.json<any>();
 			expect(node.type).toBe('imported');
 
-			const responseInvalid = await SELF.fetch('http://localhost/metadata/import', {
+			const responseInvalid = await SELF.fetch('http://localhost/test/metadata/import', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: undefined
@@ -93,13 +93,13 @@ describe('/metadata API Worker Tests', async () => {
 		});
 		it('should export metadata', async () => {
 			// Create some test data first
-			await SELF.fetch('http://localhost/metadata/import', {
+			await SELF.fetch('http://localhost/test/metadata/import', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(importData)
 			});
 
-			const response = await SELF.fetch('http://localhost/metadata/export', {
+			const response = await SELF.fetch('http://localhost/test/metadata/export', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -118,7 +118,7 @@ describe('/metadata API Worker Tests', async () => {
 
 	describe('Error Handling', () => {
 		it('should handle invalid JSON in request body', async () => {
-			const response = await SELF.fetch('http://localhost/nodes', {
+			const response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: 'invalid json'
@@ -128,7 +128,7 @@ describe('/metadata API Worker Tests', async () => {
 		});
 
 		it('should handle missing required fields', async () => {
-			const response = await SELF.fetch('http://localhost/edges', {
+			const response = await SELF.fetch('http://localhost/test/edges', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
@@ -141,7 +141,7 @@ describe('/metadata API Worker Tests', async () => {
 		});
 
 		it('should return 404 for unknown routes', async () => {
-			const response = await SELF.fetch('http://localhost/unknown-route', {
+			const response = await SELF.fetch('http://localhost/test/unknown-route', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -153,7 +153,7 @@ describe('/metadata API Worker Tests', async () => {
 
 	describe('Performance and Logging', () => {
 		it('should include request ID in responses', async () => {
-			const response = await SELF.fetch('http://localhost/nodes', {
+			const response = await SELF.fetch('http://localhost/test/nodes', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -167,7 +167,7 @@ describe('/metadata API Worker Tests', async () => {
 
 		it('should handle concurrent requests', async () => {
 			const requests = Array.from({length: 5}, (_, i) =>
-				SELF.fetch('http://localhost/nodes', {
+				SELF.fetch('http://localhost/test/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -183,7 +183,7 @@ describe('/metadata API Worker Tests', async () => {
 			});
 
 			// Verify all nodes were created
-			const listResponse = await SELF.fetch('http://localhost/nodes?type=concurrent', {
+			const listResponse = await SELF.fetch('http://localhost/test/nodes?type=concurrent', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`

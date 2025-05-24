@@ -1,4 +1,4 @@
-// Modify your index.spec.ts to add these imports and hooks
+// Modify your ops.spec.ts to add these imports and hooks
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData, prepareLogger} from './setup';
@@ -7,7 +7,7 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/graph API GraphDB Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = await createJwt(eenv);
+	const validToken = await createJwt(eenv,"test:*");
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
 		await initializeDatabase(eenv.GRAPH_DB, logger);
@@ -22,7 +22,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 		beforeEach(async () => {
 			// Set up the test graph
 			const users = await Promise.all([
-				SELF.fetch('http://localhost/nodes', {
+				SELF.fetch('http://localhost/test/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -30,7 +30,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 						properties: {name: 'Alice', role: 'admin'}
 					})
 				}).then((r: any) => r.json() as Promise<any>),
-				SELF.fetch('http://localhost/nodes', {
+				SELF.fetch('http://localhost/test/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -38,7 +38,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 						properties: {name: 'Bob', role: 'user'}
 					})
 				}).then((r: any) => r.json()),
-				SELF.fetch('http://localhost/nodes', {
+				SELF.fetch('http://localhost/test/nodes', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -50,7 +50,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 
 			// Create relationships
 			await Promise.all([
-				SELF.fetch('http://localhost/edges', {
+				SELF.fetch('http://localhost/test/edges', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -59,7 +59,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 						relationship_type: 'manages'
 					})
 				}),
-				SELF.fetch('http://localhost/edges', {
+				SELF.fetch('http://localhost/test/edges', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -77,7 +77,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 				limit: 10
 			};
 
-			const response = await SELF.fetch('http://localhost/query', {
+			const response = await SELF.fetch('http://localhost/test/query', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(queryData)
@@ -95,7 +95,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 
 		it('should traverse graph from starting node', async () => {
 			// Get a user node ID for traversal
-			const nodesResponse = await SELF.fetch('http://localhost/nodes?type=user&limit=1', {
+			const nodesResponse = await SELF.fetch('http://localhost/test/nodes?type=user&limit=1', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -109,7 +109,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 				max_depth: 2
 			};
 
-			const response = await SELF.fetch('http://localhost/traverse', {
+			const response = await SELF.fetch('http://localhost/test/traverse', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(traversalData)

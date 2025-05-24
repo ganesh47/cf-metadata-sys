@@ -1,4 +1,4 @@
-// Modify your index.spec.ts to add these imports and hooks
+// Modify your ops.spec.ts to add these imports and hooks
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {env, SELF} from 'cloudflare:test';
 import {cleanAllData, prepareLogger} from './setup';
@@ -8,7 +8,7 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/edge API GraphDB Worker Tests', async () => {
 	const eenv:Env = env as Env
-	const validToken = await createJwt(eenv);
+	const validToken = await createJwt(eenv,"test:*");
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
 		await initializeDatabase(eenv.GRAPH_DB, logger);
@@ -28,7 +28,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 
 		beforeEach(async () => {
 			// Create test nodes
-			const node1Response = await SELF.fetch('http://localhost/nodes', {
+			const node1Response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
@@ -39,7 +39,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			const node1 = await node1Response.json<any>();
 			nodeId1 = node1.id;
 
-			const node2Response = await SELF.fetch('http://localhost/nodes', {
+			const node2Response = await SELF.fetch('http://localhost/test/nodes', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify({
@@ -59,7 +59,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 				properties: {since: '2024-01-01'}
 			};
 
-			const response = await SELF.fetch('http://localhost/edges', {
+			const response = await SELF.fetch('http://localhost/test/edges', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(edgeData)
@@ -78,7 +78,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 		it('should list edges with filtering', async () => {
 			// Create multiple edges
 			await Promise.all([
-				SELF.fetch('http://localhost/edges', {
+				SELF.fetch('http://localhost/test/edges', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -87,7 +87,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 						relationship_type: 'follows'
 					})
 				}),
-				SELF.fetch('http://localhost/edges', {
+				SELF.fetch('http://localhost/test/edges', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 					body: JSON.stringify({
@@ -99,7 +99,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			]);
 
 			// Get all edges
-			const allResponse = await SELF.fetch('http://localhost/edges', {
+			const allResponse = await SELF.fetch('http://localhost/test/edges', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -110,7 +110,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			expect(allEdges.length).toBeGreaterThanOrEqual(2);
 
 			// Get edges by type
-			const followsResponse = await SELF.fetch('http://localhost/edges?type=follows', {
+			const followsResponse = await SELF.fetch('http://localhost/test/edges?type=follows', {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`
@@ -122,7 +122,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			followsEdges.forEach((edge: any) => expect(edge.relationship_type).toBe('follows'));
 
 			// Get edges by from_node
-			const fromResponse = await SELF.fetch(`http://localhost/edges?from=${nodeId1}`, {
+			const fromResponse = await SELF.fetch(`http://localhost/test/edges?from=${nodeId1}`, {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`

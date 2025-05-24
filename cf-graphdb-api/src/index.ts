@@ -15,7 +15,7 @@ import {jwtVerify} from 'jose';
 interface UserContext {
 	id: string;
 	email: string;
-
+	permissions?: string; // Added permissions field
 	[key: string]: unknown;
 }
 
@@ -32,22 +32,23 @@ type RouteHandler = (
 	params?: Record<string, string>
 ) => Promise<Response>;
 
-// Define middleware type
+// Define a middleware type with optional params
 type Middleware = (
 	request: Request,
 	env: Env,
 	logger: Logger,
-	next: (request: Request) => Promise<Response>
+	next: (request: Request) => Promise<Response>,
+	params?: Record<string, string>
 ) => Promise<Response>;
 
 // JWT validation using jose library with JWT_SECRET
-async function validateJwt(token: string, env: Env, logger: Logger): Promise<{
+export const validateJwt = async (token: string, env: Env, logger: Logger): Promise<{
 	valid: boolean;
-	user: { id: string, email: string } | null;
+	user: { id: string, email: string, permissions?: string } | null;
 	error?: string;
-}> {
+}> => {
 	try {
-		// Get the JWT_SECRET from environment
+		// Get the JWT_SECRET from the environment
 		const secret = env.JWT_SECRET;
 		if (!secret) {
 			logger.error('JWT_SECRET not configured');
@@ -70,7 +71,8 @@ async function validateJwt(token: string, env: Env, logger: Logger): Promise<{
 		// Extract only the needed user information
 		const user = {
 			id: payload.sub ?? '',
-			email: payload.email as string ?? ''
+			email: payload.email as string ?? '',
+			permissions: payload.permissions as string ?? ''
 		};
 
 		// Validate that required fields exist
@@ -97,100 +99,147 @@ async function validateJwt(token: string, env: Env, logger: Logger): Promise<{
 			error: error.message
 		};
 	}
-}
+};
 
-// Authentication middleware with proper JWT validation
-async function authenticate(
-	request: Request,
-	env: Env,
-	logger: Logger,
-	next: (request: Request) => Promise<Response>
-): Promise<Response> {
-	const authHeader = request.headers.get('Authorization');
+// Helper function to check if a user has permission for a specific route
+export const hasPermission = (permissions: string, orgId: string, method: string): boolean => {
+  if (!permissions) return false;
 
-	if (!authHeader) {
-		logger.warn('Authentication failed: Missing Authorization header');
-		return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {status: 401});
-	}
+  // Parse permission format "<scope>:<permission>"
+  const permissionEntries = permissions.split(',').map(p => p.trim());
 
-	try {
-		// Extract token from Authorization header (Bearer token)
-		const token = authHeader.startsWith('Bearer ')
-			? authHeader.slice(7)
-			: authHeader;
+  for (const entry of permissionEntries) {
+    const [scope, permission] = entry.split(':');
 
-		// Validate the JWT with proper signature verification
-		const {valid, user, error} = await validateJwt(token, env, logger);
+    // Check if scope matches (wildcard or specific org)
+    const scopeMatches = scope === '*' || scope === orgId;
+    if (!scopeMatches) continue;
 
+    // Check if permission matches (wildcard or specific permission)
+    if (permission === '*') return true;
 
-		if (!valid || !user) {
-			logger.warn('Authentication failed: Invalid or expired token', {
-				tokenId: token.slice(0, 10) + '...',
-				error
-			});
-			return new Response(JSON.stringify({message: 'Unauthorized: Invalid authentication token'}), {status: 401});
-		}
+    // Map HTTP methods to permission types
+    const requiredPermission =
+      method === 'GET' ? 'read' :
+      (method === 'POST' || method === 'PUT' || method === 'PATCH') ? 'write' :
+      method === 'DELETE' ? 'write' : 'audit';
 
-		// Extract user information from the validated payload
-		// const user: UserContext = {
-		//   id: payload.sub || '',
-		//   email: payload.email || '',
-		//   // Add any other claims you need
-		//   roles: payload.roles || [],
-		//   name: payload.name || ''
-		// };
+    // Allow higher permissions to access lower ones (write can read, audit can do anything)
+    if (permission === 'audit') return true;
+    if (permission === 'write' && (requiredPermission === 'read' || requiredPermission === 'write')) return true;
+    if (permission === 'read' && requiredPermission === 'read') return true;
+  }
 
-		// Update trace context with user info
-		if (logger.context && typeof logger.context === 'object') {
-			(logger.context as AuthenticatedTraceContext).user = user;
+  return false;
+};
 
-			// Also add user info to the metadata for logging
-			logger.context.metadata = {
-				...logger.context.metadata,
-				userId: user.id,
-				userEmail: user.email
-			};
-		}
+// Authentication middleware with proper JWT validation and permission checking
+export const authenticate = async (
+  request: Request,
+  env: Env,
+  logger: Logger,
+  next: (request: Request) => Promise<Response>,
+  params?: Record<string, string>
+): Promise<Response> => {
+  const authHeader = request.headers.get('Authorization');
 
-		logger.debug('Authentication successful', {userId: user.id});
+  if (!authHeader) {
+    logger.warn('Authentication failed: Missing Authorization header');
+    return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {status: 401});
+  }
 
-		// Create a new request with user context in headers
-		const enhancedRequest = new Request(request);
-		enhancedRequest.headers.set('X-User-ID', user.id);
-		enhancedRequest.headers.set('X-User-Email', user.email);
+  try {
+    // Extract token from Authorization header (Bearer token)
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
 
-		return await next(enhancedRequest);
-	} catch (error) {
-		logger.error('Authentication error', error);
-		return new Response(JSON.stringify({message: 'Authentication error'}), {status: 500});
-	}
-}
+    // Validate the JWT with proper signature verification
+    const {valid, user, error} = await validateJwt(token, env, logger);
+
+    if (!valid || !user) {
+      logger.warn('Authentication failed: Invalid or expired token', {
+        tokenId: token.slice(0, 10) + '...',
+        error
+      });
+      return new Response(JSON.stringify({message: 'Unauthorized: Invalid authentication token'}), {status: 401});
+    }
+
+    // Check permissions if we're accessing an org-specific route
+    if (params?.orgId && request.method) {
+      // Verify user has permission to access this org with this method
+      if (!hasPermission(user.permissions || '', params.orgId, request.method)) {
+        logger.warn('Authorization failed: Insufficient permissions', {
+          userId: user.id,
+          orgId: params.orgId,
+          method: request.method,
+          permissions: user.permissions
+        });
+        return new Response(JSON.stringify({
+          message: 'Forbidden: Insufficient permissions to access this resource'
+        }), {status: 403});
+      }
+    }
+
+    // Update trace context with user info
+    if (logger.context && typeof logger.context === 'object') {
+      (logger.context as AuthenticatedTraceContext).user = user;
+
+      // Also add user info to the metadata for logging
+      logger.context.metadata = {
+        ...logger.context.metadata,
+        userId: user.id,
+        userEmail: user.email,
+        permissions: user.permissions
+      };
+    }
+
+    logger.debug('Authentication successful', {
+      userId: user.id,
+      permissions: user.permissions,
+      orgId: params?.orgId
+    });
+
+    // Create a new request with user context in headers
+    const enhancedRequest = new Request(request);
+    enhancedRequest.headers.set('X-User-ID', user.id);
+    enhancedRequest.headers.set('X-User-Email', user.email);
+    if (user.permissions) {
+      enhancedRequest.headers.set('X-User-Permissions', user.permissions);
+    }
+
+    return await next(enhancedRequest);
+  } catch (error) {
+    logger.error('Authentication error', error);
+    return new Response(JSON.stringify({message: 'Authentication error'}), {status: 500});
+  }
+};
 
 // Create a route map to match paths and methods to handlers
 const routeMap: Record<string, Record<string, RouteHandler>> = {
-	'/nodes': {
+	'/:orgId/nodes': {
 		'POST': createNode,
 		'GET': getNodes
 	},
-	'/nodes/:id': {
+	'/:orgId/nodes/:id': {
 		'GET': async (request, env, logger, params) => getNode(params?.id || '', env, logger),
 		'PUT': async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger),
 		'DELETE': async (request, env, logger, params) => deleteNode(params?.id || '', env, logger)
 	},
-	'/edges': {
+	'/:orgId/edges': {
 		'POST': createEdge,
 		'GET': getEdges
 	},
-	'/query': {
+	'/:orgId/query': {
 		'POST': queryGraph
 	},
-	'/traverse': {
+	'/:orgId/traverse': {
 		'POST': traverseGraph
 	},
-	'/metadata/export': {
+	'/:orgId/metadata/export': {
 		'GET': async (request, env, logger) => exportMetadata(env, logger)
 	},
-	'/metadata/import': {
+	'/:orgId/metadata/import': {
 		'POST': importMetadata
 	}
 };
@@ -202,7 +251,7 @@ const publicRoutes: string[] = [
 ];
 
 // Match a path to a route pattern and extract parameters
-function matchRoute(path: string): { pattern: string; params: Record<string, string> } | null {
+export const matchRoute = (path: string): { pattern: string; params: Record<string, string> } | null => {
 	// Direct match
 	if (routeMap[path]) {
 		return {pattern: path, params: {}};
@@ -210,30 +259,73 @@ function matchRoute(path: string): { pattern: string; params: Record<string, str
 
 	// Match patterns with parameters
 	for (const pattern of Object.keys(routeMap)) {
-		if (pattern.includes(':id') && path.startsWith('/nodes/')) {
-			const nodeId = path.split('/')[2];
-			return {pattern, params: {id: nodeId}};
+		// Match path pattern with orgId
+		if (pattern.includes(':orgId') && path.startsWith('/')) {
+			const parts = path.split('/');
+			if (parts.length >= 2) {
+				// The first part after the initial slash is the orgId
+				const orgId = parts[1];
+
+				// Handle node ID if present (for '/:orgId/nodes/:id')
+				if (pattern.includes(':id') && path.includes('/nodes/') && parts.length >= 4) {
+					const nodeId = parts[3];
+					const patternParts = pattern.split('/');
+					const pathParts = path.split('/');
+
+					// Compare all parts except the parameter parts
+					let matches = true;
+					for (let i = 0; i < patternParts.length; i++) {
+						if (patternParts[i].startsWith(':')) continue; // Skip parameter parts
+						if (i >= pathParts.length || patternParts[i] !== pathParts[i]) {
+							matches = false;
+							break;
+						}
+					}
+
+					if (matches && patternParts.length === pathParts.length) {
+						return {pattern, params: {orgId, id: nodeId}};
+					}
+				}
+				// Handle other routes with org ID only
+				else {
+					const patternParts = pattern.split('/');
+					const pathParts = path.split('/');
+
+					// Compare all parts except the parameter parts
+					let matches = true;
+					for (let i = 0; i < patternParts.length; i++) {
+						if (patternParts[i].startsWith(':')) continue; // Skip parameter parts
+						if (i >= pathParts.length || patternParts[i] !== pathParts[i]) {
+							matches = false;
+							break;
+						}
+					}
+
+					if (matches && patternParts.length === pathParts.length) {
+						return {pattern, params: {orgId}};
+					}
+				}
+			}
 		}
 	}
 
 	return null;
-}
+};
 
 // Apply middleware and then call the handler
-async function applyMiddleware(
+const applyMiddleware = async (
 	middleware: Middleware,
 	handler: RouteHandler,
 	request: Request,
 	env: Env,
 	logger: Logger,
 	params?: Record<string, string>
-): Promise<Response> {
+): Promise<Response> => {
 	const next = async (req: Request) => handler(req, env, logger, params);
-	return await middleware(request, env, logger, next);
-}
-
+	return await middleware(request, env, logger, next, params);
+};
 // Handle the request based on the route map
-async function handleRequest(path: string, method: string, request: Request, env: Env, logger: Logger): Promise<Response | undefined> {
+const handleRequest = async (path: string, method: string, request: Request, env: Env, logger: Logger): Promise<Response | undefined> => {
 	const match = matchRoute(path);
 	if (match) {
 		const {pattern, params} = match;
@@ -243,9 +335,9 @@ async function handleRequest(path: string, method: string, request: Request, env
 			if (publicRoutes?.includes(path)) {
 				return await handlers[method](request, env, logger, params);
 			} else {
-				// Apply authentication middleware to protected routes
+				// Apply authentication middleware to protected routes with params
 				return await applyMiddleware(
-					authenticate,
+					(req, env, logger, next, params) => authenticate(req, env, logger, next, params),
 					handlers[method],
 					request,
 					env,
@@ -257,8 +349,7 @@ async function handleRequest(path: string, method: string, request: Request, env
 	}
 
 	return undefined;
-}
-
+};
 // noinspection JSUnusedGlobalSymbols,JSUnusedLocalSymbols
 export default {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
