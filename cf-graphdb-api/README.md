@@ -121,11 +121,12 @@ All endpoints are organization-scoped. The organization ID is specified in the U
 
 | HTTP Method | Required Permission Level |
 |-------------|---------------------------|
-| GET | `read` (or higher) |
-| POST | `write` (or higher) |
-| PUT | `write` (or higher) |
-| PATCH | `write` (or higher) |
-| DELETE | `write` (or higher) |
+| GET         | `read` (or higher)        |
+| POST        | `write` (or higher)       |
+| PUT         | `write` (or higher)       |
+| PATCH       | `write` (or higher)       |
+| DELETE      | `write` (or higher)       |
+| HEAD        | `audit`  (or higher)      |
 
 ## Security Considerations
 

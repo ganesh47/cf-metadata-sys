@@ -1,8 +1,9 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {jwtVerify} from 'jose';
 
-import {authenticate, hasPermission, matchRoute, validateJwt} from '../src';
 import {prepareLogger} from "./setup";
+import {matchRoute} from "../src/routes";
+import {authenticate, hasPermission, validateJwt} from "../src/auth";
 
 // Mock the jose library
 vi.mock('jose', () => {
