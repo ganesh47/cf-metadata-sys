@@ -1,4 +1,4 @@
-name: Cloudflare GraphDB API - Test & Build
+name: Cloudflare Worker GraphDB API - Test & Build
 
 on:
   push:
