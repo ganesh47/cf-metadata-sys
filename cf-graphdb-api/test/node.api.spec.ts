@@ -10,18 +10,22 @@ describe('/node API GraphDB  Worker Tests', async () => {
 	const eenv = env as any
 	const validToken = await createJwt(eenv,"test:*");
 	const {initStart, logger} = prepareLogger();
-	beforeAll(async ()=>{
-		await initializeDatabase(eenv.GRAPH_DB, logger);
-		logger.performance('database_init', Date.now() - initStart);
-	})
-	// Run once after all tests complete
-	afterAll(async () => {
-		await cleanAllData();
-		console.log('✓ Final database cleanup completed');
-	});
 
 	// Your existing test suites...
 	describe('Node Operations', () => {
+
+		beforeAll(async ()=>{
+			console.log("Starting Init")
+			await initializeDatabase(eenv.GRAPH_DB, logger);
+			logger.performance('database_init', Date.now() - initStart);
+		})
+		// Run once after all tests complete
+
+		afterAll(async () => {
+			await cleanAllData();
+			console.log('✓ Final database cleanup completed');
+		});
+
 		it('should create a new node', async () => {
 			const nodeData = {
 				type: 'user',
@@ -77,14 +81,22 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			const ts = (new Date()).toISOString();
 			const eenv = env as any
 			await eenv.GRAPH_DB.prepare(`
-				INSERT INTO ${NODES_TABLE} (id, type, properties, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?)
+				INSERT INTO ${NODES_TABLE} (
+					id, org_id, type, properties, created_at, updated_at,
+					created_by, updated_by, user_agent, client_ip
+				)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`).bind(
 				'test-node-124',
+				'test',
 				'document',
 				JSON.stringify({title: 'Test Document'}),
 				ts,
-				ts
+				ts,
+				'1234',
+				'1234',
+				'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36',
+				'127.0.0.1'
 			).run();
 			const uncachedResp = await SELF.fetch('http://localhost/test/nodes/test-node-124', {
 				headers: {

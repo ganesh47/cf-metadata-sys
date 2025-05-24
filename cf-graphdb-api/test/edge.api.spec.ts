@@ -107,7 +107,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			});
 			expect(allResponse.status).toBe(200);
 			const allEdges = await allResponse.json<any>();
-			expect(allEdges.length).toBeGreaterThanOrEqual(2);
+			expect(allEdges.edges.length).toBeGreaterThanOrEqual(2);
 
 			// Get edges by type
 			const followsResponse = await SELF.fetch('http://localhost/test/edges?type=follows', {
@@ -118,8 +118,8 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			});
 			expect(followsResponse.status).toBe(200);
 			const followsEdges = await followsResponse.json<any>();
-			expect(followsEdges.length).toBeGreaterThanOrEqual(1);
-			followsEdges.forEach((edge: any) => expect(edge.relationship_type).toBe('follows'));
+			expect(followsEdges.edges.length).toBeGreaterThanOrEqual(1);
+			followsEdges.edges.forEach((edge: any) => expect(edge.relationship_type).toBe('follows'));
 
 			// Get edges by from_node
 			const fromResponse = await SELF.fetch(`http://localhost/test/edges?from=${nodeId1}`, {
@@ -130,8 +130,8 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			});
 			expect(fromResponse.status).toBe(200);
 			const fromEdges = await fromResponse.json<any>();
-			expect(fromEdges.length).toBeGreaterThanOrEqual(1);
-			fromEdges.forEach((edge: any) => expect(edge.from_node).toBe(nodeId1));
+			expect(fromEdges.edges.length).toBeGreaterThanOrEqual(1);
+			fromEdges.edges.forEach((edge: any) => expect(edge.from_node).toBe(nodeId1));
 		});
 	});
 });

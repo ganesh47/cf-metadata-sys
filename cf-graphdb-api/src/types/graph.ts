@@ -2,12 +2,19 @@ import {D1Database, DurableObjectNamespace, KVNamespace, R2Bucket } from "@cloud
 
 export interface GraphEdge {
 	id: string;
+	org_id: string;
 	from_node: string;
 	to_node: string;
 	relationship_type: string;
 	properties: Record<string, any>;
 	created_at: string;
+	updated_at: string;
+	created_by: string;
+	updated_by: string;
+	user_agent: string;
+	client_ip: string;
 }
+
 export interface Env {
 	INIT_DB: string;
 	JWT_SECRET: string;
@@ -20,10 +27,15 @@ export interface Env {
 
 export default interface GraphNode {
 	id: string;
+	org_id: string;
 	type: string;
 	properties: Record<string, any>;
 	created_at: string;
 	updated_at: string;
+	created_by: string;
+	updated_by: string;
+	user_agent: string;
+	client_ip: string;
 }
 
 export interface QueryResult {
@@ -33,6 +45,7 @@ export interface QueryResult {
 		total_nodes: number;
 		total_edges: number;
 		query_time_ms: number;
+		org_id: string;
 	};
 }
 
@@ -41,4 +54,9 @@ export interface TraceContext {
 	operation: string;
 	startTime: number;
 	metadata: Record<string, any>;
+}
+
+export interface OrgParams {
+	orgId: string;
+	[key: string]: string;
 }

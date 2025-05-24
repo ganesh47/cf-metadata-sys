@@ -1,5 +1,5 @@
 import {Logger} from "./logger/logger";
-import {Env, TraceContext} from "./types/graph";
+import {Env, OrgParams, TraceContext} from "./types/graph";
 import {initializeDatabase} from "./d1/initDb";
 import {
 	queryGraph,
@@ -16,7 +16,7 @@ type RouteHandler = (
 	request: Request,
 	env: Env,
 	logger: Logger,
-	params?: Record<string, string>
+	params: OrgParams
 ) => Promise<Response>;
 
 // Define a middleware type with optional params
@@ -25,7 +25,7 @@ type Middleware = (
 	env: Env,
 	logger: Logger,
 	next: (request: Request) => Promise<Response>,
-	params?: Record<string, string>
+	params: OrgParams
 ) => Promise<Response>;
 
 // JWT validation using jose library with JWT_SECRET
@@ -89,149 +89,148 @@ export const validateJwt = async (token: string, env: Env, logger: Logger): Prom
 };
 
 export function hasPermission(permissions: string, orgId: string, requiredLevel: string): boolean {
-  if (!permissions) return false;
+	if (!permissions) return false;
 
-  const permissionScopes = permissions.split(',');
+	const permissionScopes = permissions.split(',');
 
-  for (const scope of permissionScopes) {
-    const [scopeOrg, level] = scope.split(':');
+	for (const scope of permissionScopes) {
+		const [scopeOrg, level] = scope.split(':');
 
-    // Check for global wildcard permission
-    if (scopeOrg === '*' && level === '*') return true;
+		// Check for global wildcard permission
+		if (scopeOrg === '*' && level === '*') return true;
 
-    // Check for org wildcard permission with a sufficient level
-    if (scopeOrg === '*' && hasRequiredLevel(level, requiredLevel)) return true;
+		// Check for org wildcard permission with a sufficient level
+		if (scopeOrg === '*' && hasRequiredLevel(level, requiredLevel)) return true;
 
-    // Check for exact org with sufficient level
-    if (scopeOrg === orgId && hasRequiredLevel(level, requiredLevel)) return true;
-  }
+		// Check for exact org with sufficient level
+		if (scopeOrg === orgId && hasRequiredLevel(level, requiredLevel)) return true;
+	}
 
-  return false;
+	return false;
 }
 
 function hasRequiredLevel(userLevel: string, requiredLevel: string): boolean {
-  console.log(userLevel, requiredLevel);
-  if (userLevel === '*') return true;
+	if (userLevel === '*') return true;
 
-  const levels = ['read', 'write', 'audit'];
-  const userLevelIndex = levels.indexOf(userLevel);
-  const requiredLevelIndex = levels.indexOf(requiredLevel);
-  if (userLevelIndex === -1 || requiredLevelIndex === -1) return false;
-  return userLevelIndex >= requiredLevelIndex;
+	const levels = ['read', 'write', 'audit'];
+	const userLevelIndex = levels.indexOf(userLevel);
+	const requiredLevelIndex = levels.indexOf(requiredLevel);
+	if (userLevelIndex === -1 || requiredLevelIndex === -1) return false;
+	return userLevelIndex >= requiredLevelIndex;
 }
 
 export async function authenticate(
-  request: Request,
-  env: Env,
-  logger: Logger,
-  next: (request: Request) => Promise<Response>,
-  params?: Record<string, string>
+	request: Request,
+	env: Env,
+	logger: Logger,
+	next: (request: Request) => Promise<Response>,
+	params?: Record<string, string>
 ): Promise<Response> {
-  // Get the JWT token from the Authorization header
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ message: 'Unauthorized: Missing authentication token' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	// Get the JWT token from the Authorization header
+	const authHeader = request.headers.get('Authorization');
+	if (!authHeader || !authHeader.startsWith('Bearer ')) {
+		return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {
+			status: 401,
+			headers: {'Content-Type': 'application/json'}
+		});
+	}
 
-  const token = authHeader.split(' ')[1];
-  const result = await validateJwt(token, env, logger);
+	const token = authHeader.split(' ')[1];
+	const result = await validateJwt(token, env, logger);
 
-  if (!result.valid || !result.user) {
-    return new Response(JSON.stringify({ message: 'Unauthorized: Invalid authentication token' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	if (!result.valid || !result.user) {
+		return new Response(JSON.stringify({message: 'Unauthorized: Invalid authentication token'}), {
+			status: 401,
+			headers: {'Content-Type': 'application/json'}
+		});
+	}
 
-  // Get required permission for this route and method
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method;
+	// Get required permission for this route and method
+	const url = new URL(request.url);
+	const path = url.pathname;
+	const method = request.method;
 
-  const match = matchRoute(path);
-  if (!match) {
-    return new Response(JSON.stringify({ message: 'Not Found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	const match = matchRoute(path);
+	if (!match) {
+		return new Response(JSON.stringify({message: 'Not Found'}), {
+			status: 404,
+			headers: {'Content-Type': 'application/json'}
+		});
+	}
 
-  const { pattern } = match;
-  const routeConfig = routeMap[pattern][method];
+	const {pattern} = match;
+	const routeConfig = routeMap[pattern][method];
 
-  if (!routeConfig) {
-    return new Response(JSON.stringify({ message: 'Method Not Allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	if (!routeConfig) {
+		return new Response(JSON.stringify({message: 'Method Not Allowed'}), {
+			status: 405,
+			headers: {'Content-Type': 'application/json'}
+		});
+	}
 
-  const { requiredPermission } = routeConfig;
-  const orgId = params?.orgId || '';
+	const {requiredPermission} = routeConfig;
+	const orgId = params?.orgId || '';
 
-  // Check if user has the required permission for this organization
-  if (!hasPermission(result.user.permissions || '', orgId, requiredPermission)) {
-    return new Response(JSON.stringify({
-      message: 'Forbidden: Insufficient permissions to access this resource'
-    }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	// Check if user has the required permission for this organization
+	if (!hasPermission(result.user.permissions || '', orgId, requiredPermission)) {
+		return new Response(JSON.stringify({
+			message: 'Forbidden: Insufficient permissions to access this resource'
+		}), {
+			status: 403,
+			headers: {'Content-Type': 'application/json'}
+		});
+	}
 
-  // Add user information to request headers
-  const enhancedRequest = new Request(request);
-  enhancedRequest.headers.set('X-User-ID', result.user.id);
-  enhancedRequest.headers.set('X-User-Email', result.user.email);
-  if (result.user.permissions) {
-    enhancedRequest.headers.set('X-User-Permissions', result.user.permissions);
-  }
+	// Add user information to request headers
+	const enhancedRequest = new Request(request);
+	enhancedRequest.headers.set('X-User-ID', result.user.id);
+	enhancedRequest.headers.set('X-User-Email', result.user.email);
+	if (result.user.permissions) {
+		enhancedRequest.headers.set('X-User-Permissions', result.user.permissions);
+	}
 
-  // Pass the authenticated request to the next handler
-  return next(enhancedRequest);
+	// Pass the authenticated request to the next handler
+	return next(enhancedRequest);
 }
 
 // Create a route map to match paths and methods to handlers
 const routeMap: Record<string, Record<string, { handler: RouteHandler, requiredPermission: string }>> = {
 	'/:orgId/nodes': {
-		'POST': { handler: createNode, requiredPermission: 'write' },
-		'GET': { handler: getNodes, requiredPermission: 'read' }
+		'POST': {handler: createNode, requiredPermission: 'write'},
+		'GET': {handler: getNodes, requiredPermission: 'read'}
 	},
 	'/:orgId/nodes/:id': {
 		'GET': {
-			handler: async (request, env, logger, params) => getNode(params?.id || '', env, logger),
+			handler: async (request, env, logger, params) => getNode(params?.id || '', env, logger, params as OrgParams),
 			requiredPermission: 'read'
 		},
 		'PUT': {
-			handler: async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger),
+			handler: async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger, params as OrgParams),
 			requiredPermission: 'write'
 		},
 		'DELETE': {
-			handler: async (request, env, logger, params) => deleteNode(params?.id || '', env, logger),
+			handler: async (request, env, logger, params) => deleteNode(params?.id || '', env, logger, params as OrgParams),
 			requiredPermission: 'write'
 		}
 	},
 	'/:orgId/edges': {
-		'POST': { handler: createEdge, requiredPermission: 'write' },
-		'GET': { handler: getEdges, requiredPermission: 'read' }
+		'POST': {handler: createEdge, requiredPermission: 'write'},
+		'GET': {handler: getEdges, requiredPermission: 'read'}
 	},
 	'/:orgId/query': {
-		'POST': { handler: queryGraph, requiredPermission: 'read' }
+		'POST': {handler: queryGraph, requiredPermission: 'read'}
 	},
 	'/:orgId/traverse': {
-		'POST': { handler: traverseGraph, requiredPermission: 'read' }
+		'POST': {handler: traverseGraph, requiredPermission: 'read'}
 	},
 	'/:orgId/metadata/export': {
 		'GET': {
-			handler: async (request, env, logger) => exportMetadata(env, logger),
+			handler: async (request, env, logger,params:OrgParams) => exportMetadata(env, logger,params as OrgParams),
 			requiredPermission: 'read'
 		}
 	},
 	'/:orgId/metadata/import': {
-		'POST': { handler: importMetadata, requiredPermission: 'write' }
+		'POST': {handler: importMetadata, requiredPermission: 'write'}
 	}
 };
 
@@ -312,8 +311,8 @@ const applyMiddleware = async (
 	logger: Logger,
 	params?: Record<string, string>
 ): Promise<Response> => {
-	const next = async (req: Request) => handler(req, env, logger, params);
-	return await middleware(request, env, logger, next, params);
+	const next = async (req: Request) => handler(req, env, logger, params as OrgParams);
+	return await middleware(request, env, logger, next, params as OrgParams);
 };
 // Handle the request based on the route map
 const handleRequest = async (path: string, method: string, request: Request, env: Env, logger: Logger): Promise<Response | undefined> => {
@@ -324,7 +323,7 @@ const handleRequest = async (path: string, method: string, request: Request, env
 		if (handlers[method]) {
 			// Check if route is public or requires authentication
 			if (publicRoutes?.includes(path)) {
-				return await handlers[method].handler(request, env, logger, params);
+				return await handlers[method].handler(request, env, logger, params as OrgParams);
 			} else {
 				// Apply authentication middleware to protected routes with params
 				return await applyMiddleware(
