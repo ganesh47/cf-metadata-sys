@@ -15,6 +15,6 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=ganesh47_cf-metadata-sys&metric=bugs)](https://sonarcloud.io/summary/new_code?id=ganesh47_cf-metadata-sys)
 
 
-
+## Can we compose cloudflare primitives to compose a metadata system?
 
 Thinking....building...thinking...
