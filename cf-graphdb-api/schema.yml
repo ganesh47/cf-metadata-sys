@@ -1,0 +1,744 @@
+openapi: 3.0.0
+info:
+    title: Graph Database API
+    description: API for managing and querying a graph database with nodes, edges, and traversals
+    version: 1.0.0
+
+servers:
+    - url: https://api.example.com
+      description: Production server
+    - url: http://localhost
+      description: Local development server
+
+components:
+    securitySchemes:
+        bearerAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+
+    schemas:
+        Node:
+            type: object
+            required:
+                - id
+                - type
+            properties:
+                id:
+                    type: string
+                    description: Unique identifier for the node
+                type:
+                    type: string
+                    description: Type of the node
+                properties:
+                    type: object
+                    description: Custom properties for the node
+                    additionalProperties: true
+
+        Edge:
+            type: object
+            required:
+                - from_node
+                - to_node
+                - relationship_type
+            properties:
+                id:
+                    type: string
+                    description: Unique identifier for the edge (system-generated)
+                from_node:
+                    type: string
+                    description: ID of the source node
+                to_node:
+                    type: string
+                    description: ID of the target node
+                relationship_type:
+                    type: string
+                    description: Type of relationship between nodes
+                properties:
+                    type: object
+                    description: Custom properties for the edge
+                    additionalProperties: true
+
+        NodeQuery:
+            type: object
+            properties:
+                node_type:
+                    type: string
+                    description: Type of nodes to query for
+                limit:
+                    type: integer
+                    description: Maximum number of nodes to return
+                    minimum: 1
+                    default: 10
+                properties:
+                    type: object
+                    description: Properties to filter nodes by
+                    additionalProperties: true
+
+        TraversalQuery:
+            type: object
+            required:
+                - start_node
+            properties:
+                start_node:
+                    type: string
+                    description: ID of the node to start traversal from
+                relationship_type:
+                    type: string
+                    description: Type of relationship to traverse
+                max_depth:
+                    type: integer
+                    description: Maximum depth to traverse
+                    default: 3
+                    minimum: 1
+                    maximum: 10
+
+        MetadataImport:
+            type: object
+            properties:
+                nodes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Node'
+                edges:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Edge'
+
+        Error:
+            type: object
+            properties:
+                error:
+                    type: string
+                    description: Error message
+                status:
+                    type: integer
+                    description: HTTP status code
+
+security:
+    - bearerAuth: []
+
+paths:
+    /{orgId}/nodes:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        get:
+            summary: Get all nodes
+            description: Retrieve all nodes for the organization
+            operationId: getNodes
+            responses:
+                '200':
+                    description: List of nodes
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Node'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        post:
+            summary: Create a node
+            description: Create a new node in the graph
+            operationId: createNode
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Node'
+            responses:
+                '201':
+                    description: Node created successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Node'
+                '400':
+                    description: Invalid request
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/nodes/{id}:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+            - name: id
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Node ID
+
+        get:
+            summary: Get node by ID
+            description: Retrieve a specific node by its ID
+            operationId: getNode
+            responses:
+                '200':
+                    description: Node found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Node'
+                '404':
+                    description: Node not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        put:
+            summary: Update node
+            description: Update an existing node
+            operationId: updateNode
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Node'
+            responses:
+                '200':
+                    description: Node updated successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Node'
+                '400':
+                    description: Invalid request
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '404':
+                    description: Node not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        delete:
+            summary: Delete node
+            description: Delete a node and all its connected edges
+            operationId: deleteNode
+            responses:
+                '200':
+                    description: Node deleted successfully
+                '404':
+                    description: Node not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/edges:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        get:
+            summary: Get all edges
+            description: Retrieve all edges for the organization
+            operationId: getEdges
+            responses:
+                '200':
+                    description: List of edges
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Edge'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/edge:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        post:
+            summary: Create an edge
+            description: Create a new edge connecting two nodes
+            operationId: createEdge
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Edge'
+            responses:
+                '201':
+                    description: Edge created successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Edge'
+                '400':
+                    description: Invalid request
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '404':
+                    description: One or both nodes not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/edge/{id}:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+            - name: id
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Edge ID
+
+        get:
+            summary: Get edge by ID
+            description: Retrieve a specific edge by its ID
+            operationId: getEdge
+            responses:
+                '200':
+                    description: Edge found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Edge'
+                '404':
+                    description: Edge not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        put:
+            summary: Update edge
+            description: Update an existing edge
+            operationId: updateEdge
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Edge'
+            responses:
+                '200':
+                    description: Edge updated successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Edge'
+                '400':
+                    description: Invalid request
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '404':
+                    description: Edge not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        patch:
+            summary: Partially update edge
+            description: Partially update an existing edge
+            operationId: patchEdge
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Edge'
+            responses:
+                '200':
+                    description: Edge updated successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Edge'
+                '400':
+                    description: Invalid request
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '404':
+                    description: Edge not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+        delete:
+            summary: Delete edge
+            description: Delete an edge
+            operationId: deleteEdge
+            responses:
+                '200':
+                    description: Edge deleted successfully
+                '404':
+                    description: Edge not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/query:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        post:
+            summary: Query nodes
+            description: Query nodes based on type and properties
+            operationId: queryGraph
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/NodeQuery'
+            responses:
+                '200':
+                    description: Query results
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Node'
+                '400':
+                    description: Invalid query
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/traverse:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        post:
+            summary: Traverse graph
+            description: Traverse the graph starting from a node
+            operationId: traverseGraph
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TraversalQuery'
+            responses:
+                '200':
+                    description: Traversal results
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    nodes:
+                                        type: array
+                                        items:
+                                            $ref: '#/components/schemas/Node'
+                                    edges:
+                                        type: array
+                                        items:
+                                            $ref: '#/components/schemas/Edge'
+                '400':
+                    description: Invalid query
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '404':
+                    description: Start node not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/metadata/export:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        get:
+            summary: Export metadata
+            description: Export all graph metadata (nodes and edges)
+            operationId: exportMetadata
+            responses:
+                '200':
+                    description: Exported metadata
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    nodes:
+                                        type: array
+                                        items:
+                                            $ref: '#/components/schemas/Node'
+                                    edges:
+                                        type: array
+                                        items:
+                                            $ref: '#/components/schemas/Edge'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+
+    /{orgId}/metadata/import:
+        parameters:
+            - name: orgId
+              in: path
+              required: true
+              schema:
+                  type: string
+              description: Organization ID
+
+        post:
+            summary: Import metadata
+            description: Import graph metadata (nodes and edges)
+            operationId: importMetadata
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MetadataImport'
+            responses:
+                '200':
+                    description: Metadata imported successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    imported_nodes:
+                                        type: integer
+                                    imported_edges:
+                                        type: integer
+                '400':
+                    description: Invalid metadata
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                '403':
+                    description: Forbidden
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
