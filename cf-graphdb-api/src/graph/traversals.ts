@@ -216,49 +216,76 @@ async function traverseNode(
 		if (adjacencyData) {
 			const adjacentNodes = JSON.parse(adjacencyData) as { node: string, type: string }[];
 
+			// Replace the sequential traversal code with a parallel implementation
+
+			// First, collect all adjacency operations for the current level
+			const traversalPromises = [];
+
 			for (const adjacent of adjacentNodes) {
 				if (relationshipTypes && !relationshipTypes.includes(adjacent.type)) {
 					continue;
 				}
 
-				// Get edge details
-				const edgeStart = Date.now();
-				const edgeQuery = await env.GRAPH_DB.prepare(`
-          SELECT * FROM ${EDGES_TABLE} WHERE from_node = ? AND to_node = ? AND relationship_type = ? AND org_id = ?
-        `).bind(nodeId, adjacent.node, adjacent.type, orgId).first();
-				logger?.performance('traverse_edge_lookup', Date.now() - edgeStart);
+				// Create a promise to handle this adjacency operation
+				traversalPromises.push(
+					(async () => {
+						// Get edge details
+						const edgeStart = Date.now();
+						const edgeQuery = await env.GRAPH_DB.prepare(`
+        SELECT * FROM ${EDGES_TABLE} WHERE from_node = ? AND to_node = ? AND relationship_type = ? AND org_id = ?
+      `).bind(nodeId, adjacent.node, adjacent.type, orgId).first();
+						logger?.performance('traverse_edge_lookup', Date.now() - edgeStart);
 
-				if (edgeQuery) {
-					const edge: GraphEdge = {
-						id: edgeQuery.id as string,
-						org_id: edgeQuery.org_id as string,
-						from_node: edgeQuery.from_node as string,
-						to_node: edgeQuery.to_node as string,
-						relationship_type: edgeQuery.relationship_type as string,
-						properties: JSON.parse(edgeQuery.properties as string),
-						created_at: edgeQuery.created_at as string,
-						updated_at: edgeQuery.updated_at as string,
-						created_by: edgeQuery.created_by as string,
-						updated_by: edgeQuery.updated_by as string,
-						user_agent: edgeQuery.user_agent as string,
-						client_ip: edgeQuery.client_ip as string
-					};
+						if (edgeQuery) {
+							const edge: GraphEdge = {
+								id: edgeQuery.id as string,
+								org_id: edgeQuery.org_id as string,
+								from_node: edgeQuery.from_node as string,
+								to_node: edgeQuery.to_node as string,
+								relationship_type: edgeQuery.relationship_type as string,
+								properties: JSON.parse(edgeQuery.properties as string),
+								created_at: edgeQuery.created_at as string,
+								updated_at: edgeQuery.updated_at as string,
+								created_by: edgeQuery.created_by as string,
+								updated_by: edgeQuery.updated_by as string,
+								user_agent: edgeQuery.user_agent as string,
+								client_ip: edgeQuery.client_ip as string
+							};
+							return { edge, adjacentNode: adjacent.node };
+						}
+						return { edge: null, adjacentNode: adjacent.node };
+					})()
+				);
+			}
+
+			// Wait for all edge queries to complete in parallel
+			const edgeResults = await Promise.all(traversalPromises);
+
+			// Process the results and add edges to the result collection
+			for (const { edge} of edgeResults) {
+				if (edge) {
 					result.edges.push(edge);
 				}
+			}
 
-				await traverseNode(
+			// Now process the next level of traversals in parallel
+			const nextLevelPromises = edgeResults.map(({ adjacentNode }) =>
+				traverseNode(
 					env,
-					adjacent.node,
+					adjacentNode,
 					currentDepth + 1,
 					maxDepth,
 					visited,
 					result,
-					[...currentPath, adjacent.node],
+					[...currentPath, adjacentNode],
 					orgId,
 					relationshipTypes,
 					logger
-				);
-			}
+				)
+			);
+
+			// Wait for all next-level traversals to complete
+			await Promise.all(nextLevelPromises);
 		}
 	} catch (error) {
 		logger?.error('Error during node traversal', { nodeId, orgId, error });
