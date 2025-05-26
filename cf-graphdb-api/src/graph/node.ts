@@ -396,10 +396,10 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 		// Delete all edges connected to this node
 		const edgesStart = Date.now();
 		const connectedEdges = await env.GRAPH_DB.prepare(`
-			SELECT *
-			FROM ${EDGES_TABLE}
-			WHERE (from_node = ? OR to_node = ?) AND org_id = ?
-		`).bind(nodeId, nodeId, orgId).all();
+			SELECT * FROM edges_v2 WHERE from_node = ? AND org_id = ?
+			UNION
+			SELECT * FROM edges_v2 WHERE to_node = ? AND org_id = ?;
+		`).bind(nodeId,orgId, nodeId, orgId).all();
 
 		await env.GRAPH_DB.prepare(`
 			DELETE
