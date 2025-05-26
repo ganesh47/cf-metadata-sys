@@ -97,7 +97,7 @@ jobs:
         env:
           CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
           ENV_JWT_SECRET: ${{ secrets.ENV_JWT_SECRET }}
-          CF_CONCURRENT_REQUESTS: 80
+          CF_CONCURRENT_REQUESTS: 50
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
