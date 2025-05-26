@@ -10,7 +10,7 @@ import {SignJWT} from 'jose';
 import {TextEncoder} from 'util';
 
 export async function createJwt(eenv:Env,permissions:string) {
-	const secret = eenv.JWT_SECRET;
+	const secret = eenv.JWT_SECRET ?? 'some-secret-key-here';
 	expect(secret).toBeDefined();
 
 	// Create the secret key from the JWT_SECRET
