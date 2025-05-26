@@ -11,8 +11,8 @@ import {TextEncoder} from 'util';
 
 export async function createJwt(eenv:Env,permissions:string) {
 	const secret = eenv.JWT_SECRET ;
-	console.log(JSON.stringify(eenv))
-	console.log(JSON.stringify(env))
+	console.warn(JSON.stringify(eenv))
+	console.warn(JSON.stringify(env))
 	expect(secret).toBeDefined();
 
 	// Create the secret key from the JWT_SECRET
