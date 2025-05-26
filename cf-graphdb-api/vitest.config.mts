@@ -5,7 +5,7 @@ export default defineWorkersConfig({
 	test: {
 		environmentOptions:{
 			bindings: {
-				JWT_SECRET: process.env.JWT_SECRET,
+				JWT_SECRET: process.env.JWT_SECRET ?? 'dummy-secret',
 				INIT_DB: process.env.INIT_DB ?? 'false',
 			}
 		},
