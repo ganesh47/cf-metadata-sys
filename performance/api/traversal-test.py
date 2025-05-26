@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 load_dotenv()
 import os
@@ -7,12 +6,14 @@ import asyncio
 import httpx
 import jwt
 import random
+import statistics
+import datetime
 from collections import defaultdict
 
 # === Config ===
 TOTAL_NODES = 100
 TOTAL_EDGES = 200
-CONCURRENT_REQUESTS = 10
+CONCURRENT_REQUESTS = int(os.getenv("CF_CONCURRENT_REQUESTS", 10))
 WORKER_URL = os.getenv("CF_WORKER_URL", "http://localhost")
 JWT_SECRET = os.getenv("ENV_JWT_SECRET", "test-secret")
 
