@@ -10,7 +10,9 @@ import {SignJWT} from 'jose';
 import {TextEncoder} from 'util';
 
 export async function createJwt(eenv:Env,permissions:string) {
-	const secret = eenv.JWT_SECRET ?? 'some-secret-key-here';
+	const secret = eenv.JWT_SECRET ;
+	console.log(JSON.stringify(eenv))
+	console.log(JSON.stringify(env))
 	expect(secret).toBeDefined();
 
 	// Create the secret key from the JWT_SECRET
@@ -55,7 +57,7 @@ describe('Auth GraphDB Worker Tests', () => {
 
 			// Verify the response is an Unauthorized error
 			expect(response.status).toBe(401);
-			const responseMsg = await response.json();
+			const responseMsg:any = await response.json();
 			expect(responseMsg.message).toContain('Unauthorized: Missing authentication token');
 		});
 		it('should return 404 for an non-existing route', async () => {
