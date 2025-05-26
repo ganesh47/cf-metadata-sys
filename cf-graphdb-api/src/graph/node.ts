@@ -148,6 +148,43 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 		const updatedBy = url.searchParams.get('updated_by');
 		const limit = parseInt(url.searchParams.get('limit') ?? '100');
 
+		// Add pagination parameters
+		const page = parseInt(url.searchParams.get('page') ?? '1');
+		const offset = (page - 1) * limit;
+
+		// Add sorting parameters
+		const sortBy = url.searchParams.get('sort_by') ?? 'created_at';
+		const sortOrder = url.searchParams.get('sort_order')?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+		// First, count total matching records for pagination metadata
+		let countQuery = `SELECT COUNT(*) as total
+						  FROM ${NODES_TABLE}
+						  WHERE org_id = ?`;
+		const countParams: any[] = [orgId];
+
+		if (nodeType) {
+			countQuery += ` AND type = ?`;
+			countParams.push(nodeType);
+		}
+
+		if (createdBy) {
+			countQuery += ` AND created_by = ?`;
+			countParams.push(createdBy);
+		}
+
+		if (updatedBy) {
+			countQuery += ` AND updated_by = ?`;
+			countParams.push(updatedBy);
+		}
+
+		const countStart = Date.now();
+		const countResult = await env.GRAPH_DB.prepare(countQuery).bind(...countParams).first();
+		logger.performance('d1_nodes_count_query', Date.now() - countStart);
+
+		const totalRecords:number = countResult?.total as number || 0;
+		const totalPages = Math.ceil(totalRecords / limit);
+
+		// Main query for fetching nodes with pagination
 		let query = `SELECT *
 					 FROM ${NODES_TABLE}
 					 WHERE org_id = ?`;
@@ -168,10 +205,24 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 			params.push(updatedBy);
 		}
 
-		query += ` LIMIT ?`;
-		params.push(limit);
+		// Add sorting
+		query += ` ORDER BY ${sortBy} ${sortOrder}`;
 
-		logger.debug('Executing nodes query', {orgId, nodeType, createdBy, updatedBy, limit});
+		// Add pagination
+		query += ` LIMIT ? OFFSET ?`;
+		params.push(limit, offset);
+
+		logger.debug('Executing nodes query', {
+			orgId,
+			nodeType,
+			createdBy,
+			updatedBy,
+			limit,
+			page,
+			offset,
+			sortBy,
+			sortOrder
+		});
 
 		const queryStart = Date.now();
 		const results = await env.GRAPH_DB.prepare(query).bind(...params).all();
@@ -192,13 +243,37 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 			client_ip: row.client_ip
 		})) ?? [];
 
-		logger.info('Nodes retrieved successfully', {orgId, count: nodes.length});
+		// Create pagination metadata
+		const paginationMeta = {
+			page,
+			limit,
+			total_records: totalRecords,
+			total_pages: totalPages,
+			has_next_page: page < totalPages,
+			has_prev_page: page > 1,
+			next_page: page < totalPages ? page + 1 : null,
+			prev_page: page > 1 ? page - 1 : null
+		};
 
-		return new Response(JSON.stringify(nodes), {
+		// Final response with nodes and pagination metadata
+		const response = {
+			data: nodes,
+			pagination: paginationMeta
+		};
+
+		logger.info('Nodes retrieved successfully', {
+			orgId,
+			count: nodes.length,
+			page,
+			totalRecords,
+			totalPages
+		});
+
+		return new Response(JSON.stringify(response), {
 			headers: {'Content-Type': 'application/json'}
 		});
-	} catch (error) {
-		logger.error('Failed to get nodes', {orgId});
+	} catch (error:any) {
+		logger.error('Failed to get nodes', {orgId, error: error?.message});
 		throw error;
 	}
 }

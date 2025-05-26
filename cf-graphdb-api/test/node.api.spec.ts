@@ -291,7 +291,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			});
 			expect(allResponse.status).toBe(200);
 			const allNodes = await allResponse.json<any>();
-			expect(allNodes.length).toBeGreaterThanOrEqual(3);
+			expect(allNodes.data.length).toBeGreaterThanOrEqual(3);
 
 			// Get filtered nodes
 			const userResponse = await SELF.fetch('http://localhost/test/nodes?type=user', {
@@ -302,8 +302,8 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			});
 			expect(userResponse.status).toBe(200);
 			const userNodes = await userResponse.json<any>();
-			expect(userNodes.length).toBeGreaterThanOrEqual(2);
-			userNodes.forEach((node: any) => expect(node.type).toBe('user'));
+			expect(userNodes.data.length).toBeGreaterThanOrEqual(2);
+			userNodes.data.forEach((node: any) => expect(node.type).toBe('user'));
 		});
 	});
 });

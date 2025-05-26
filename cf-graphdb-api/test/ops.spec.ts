@@ -190,7 +190,7 @@ describe('/metadata API Worker Tests', async () => {
 				}
 			});
 			const nodes = await listResponse.json<any>();
-			expect(nodes.length).toBe(5);
+			expect(nodes.data.length).toBe(5);
 		});
 	});
 });

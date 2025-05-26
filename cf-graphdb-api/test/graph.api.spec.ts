@@ -102,7 +102,7 @@ describe('/graph API GraphDB Worker Tests', async () => {
 				}
 			});
 			const nodes = await nodesResponse.json<any>();
-			const startNodeId = nodes[0].id;
+			const startNodeId = nodes.data[0].id;
 
 			const traversalData = {
 				start_node: startNodeId,
