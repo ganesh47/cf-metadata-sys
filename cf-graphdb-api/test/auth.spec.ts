@@ -11,8 +11,6 @@ import {TextEncoder} from 'util';
 
 export async function createJwt(eenv:Env,permissions:string) {
 	const secret = eenv.JWT_SECRET ;
-	console.warn(JSON.stringify(eenv))
-	console.warn(JSON.stringify(env))
 	expect(secret).toBeDefined();
 
 	// Create the secret key from the JWT_SECRET
@@ -38,7 +36,6 @@ describe('Auth GraphDB Worker Tests', () => {
 	const eenv = env as Env
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
-		logger.error(JSON.stringify(eenv))
 		await initializeDatabase(eenv.GRAPH_DB, logger);
 		logger.performance('database_init', Date.now() - initStart);
 	})
