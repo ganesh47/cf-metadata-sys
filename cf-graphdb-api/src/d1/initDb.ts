@@ -4,7 +4,6 @@ import { D1Database } from "@cloudflare/workers-types";
 
 export async function initializeDatabase(db: D1Database, logger: Logger): Promise<void> {
 	logger.debug('Initializing database tables');
-	logger.warn()
 	try {
 		// Create a node table with organization scope and audit metadata
 		const nodesStart = Date.now();
