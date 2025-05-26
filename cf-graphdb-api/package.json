@@ -7,7 +7,7 @@
 		"dev:stage": "wrangler dev --env stage",
 		"test": "WRANGLER_ENV=dev vitest",
 		"test:dev": "WRANGLER_ENV=dev vitest",
-		"test:stage": "WRANGLER_ENV=stage vitest",
+		"test:stage": "WRANGLER_ENV=stage JWT_SECRET='some-secret' vitest",
 		"test:watch": "WRANGLER_ENV=dev vitest --watch",
 		"test:coverage": "WRANGLER_ENV=dev vitest --coverage",
 		"test:coverage:stage": "WRANGLER_ENV=stage vitest --coverage",
