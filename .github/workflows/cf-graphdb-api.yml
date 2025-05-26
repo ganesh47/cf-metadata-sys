@@ -30,10 +30,15 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'cf-graphdb-api/package-lock.json'
-      - name: Stage CI
-        run: npm run ci:stage
+      - name: 🧪 Run Vitest with temp .stage.vars
+        shell: bash
+        run: |
+          set -e          # fail on first error in main command block
+          trap 'rm -f .stage.vars' EXIT  # always delete .stage.vars on exit
+          echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" > .stage.vars
+          npm run ci:stage
         env:
-          JWT_SECRET: ${{ secrets.ENV_JWT_SECRET }}
+          NODE_ENV: stage
       - name: Upload test coverage
         uses: actions/upload-artifact@v4
         with:
