@@ -1,5 +1,7 @@
 // vitest.config.mts
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+import dotenv from 'dotenv'
+console.warn(process.env.JWT_SECRET)
 const environment = process.env.WRANGLER_ENV ?? 'dev';
 export default defineWorkersConfig({
 	test: {
