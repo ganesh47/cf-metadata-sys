@@ -14,7 +14,6 @@
 		"stage": {
 			"vars": {
 				"LOG_LEVEL": "warn",
-				"JWT_SECRET": "dummy-not-so-secret",
 				"INIT_DB": "false"
 			},
 			"d1_databases": [
