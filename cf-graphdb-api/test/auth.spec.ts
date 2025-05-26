@@ -38,6 +38,7 @@ describe('Auth GraphDB Worker Tests', () => {
 	const eenv = env as Env
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
+		logger.error(JSON.stringify(eenv))
 		await initializeDatabase(eenv.GRAPH_DB, logger);
 		logger.performance('database_init', Date.now() - initStart);
 	})
