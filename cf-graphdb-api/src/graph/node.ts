@@ -3,7 +3,7 @@ import {Logger} from "../logger/logger";
 import {EDGES_TABLE, NODES_TABLE} from "../constants";
 
 export async function getNode(nodeId: string, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
-	const { orgId } = params;
+	const {orgId} = params;
 	logger.debug('Retrieving node', {orgId, nodeId});
 
 	try {
@@ -29,7 +29,8 @@ export async function getNode(nodeId: string, env: Env, logger: Logger, params: 
 		const result = await env.GRAPH_DB.prepare(`
 			SELECT *
 			FROM ${NODES_TABLE}
-			WHERE id = ? AND org_id = ?
+			WHERE id = ?
+			  AND org_id = ?
 		`).bind(nodeId, orgId).first();
 		logger.performance('d1_lookup', Date.now() - d1Start, {found: !!result});
 
@@ -68,7 +69,7 @@ export async function getNode(nodeId: string, env: Env, logger: Logger, params: 
 }
 
 export async function createNode(request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
-	const { orgId } = params;
+	const {orgId} = params;
 	logger.debug('Creating new node', {orgId});
 
 	try {
@@ -102,10 +103,8 @@ export async function createNode(request: Request, env: Env, logger: Logger, par
 		// Store in D1 for relational queries
 		const d1Start = Date.now();
 		await env.GRAPH_DB.prepare(`
-			INSERT INTO ${NODES_TABLE} (
-				id, org_id, type, properties, created_at, updated_at,
-				created_by, updated_by, user_agent, client_ip
-			)
+			INSERT INTO ${NODES_TABLE} (id, org_id, type, properties, created_at, updated_at,
+										created_by, updated_by, user_agent, client_ip)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`).bind(
 			node.id,
@@ -138,7 +137,7 @@ export async function createNode(request: Request, env: Env, logger: Logger, par
 }
 
 export async function getNodes(request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
-	const { orgId } = params;
+	const {orgId} = params;
 	logger.debug('Getting nodes list', {orgId});
 
 	try {
@@ -181,7 +180,7 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 		const countResult = await env.GRAPH_DB.prepare(countQuery).bind(...countParams).first();
 		logger.performance('d1_nodes_count_query', Date.now() - countStart);
 
-		const totalRecords:number = countResult?.total as number || 0;
+		const totalRecords: number = countResult?.total as number || 0;
 		const totalPages = Math.ceil(totalRecords / limit);
 
 		// Main query for fetching nodes with pagination
@@ -272,14 +271,14 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 		return new Response(JSON.stringify(response), {
 			headers: {'Content-Type': 'application/json'}
 		});
-	} catch (error:any) {
+	} catch (error: any) {
 		logger.error('Failed to get nodes', {orgId, error: error?.message});
 		throw error;
 	}
 }
 
 export async function updateNode(nodeId: string, request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
-	const { orgId } = params;
+	const {orgId} = params;
 	logger.debug('Updating node', {orgId, nodeId});
 
 	try {
@@ -299,7 +298,8 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 		const existing = await env.GRAPH_DB.prepare(`
 			SELECT *
 			FROM ${NODES_TABLE}
-			WHERE id = ? AND org_id = ?
+			WHERE id = ?
+			  AND org_id = ?
 		`).bind(nodeId, orgId).first();
 		logger.performance('get_existing_node', Date.now() - existingStart);
 
@@ -333,7 +333,8 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 				updated_by = ?,
 				user_agent = ?,
 				client_ip  = ?
-			WHERE id = ? AND org_id = ?
+			WHERE id = ?
+			  AND org_id = ?
 		`).bind(
 			updatedNode.type,
 			JSON.stringify(updatedNode.properties),
@@ -375,7 +376,7 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 }
 
 export async function deleteNode(nodeId: string, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
-	const { orgId } = params;
+	const {orgId} = params;
 	logger.debug('Deleting node', {orgId, nodeId});
 
 	try {
@@ -384,7 +385,8 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 		const existingNode = await env.GRAPH_DB.prepare(`
 			SELECT *
 			FROM ${NODES_TABLE}
-			WHERE id = ? AND org_id = ?
+			WHERE id = ?
+			  AND org_id = ?
 		`).bind(nodeId, orgId).first();
 		logger.performance('get_node_for_deletion', Date.now() - nodeStart);
 
@@ -394,45 +396,64 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 		}
 
 		// Delete all edges connected to this node
-		const edgesStart = Date.now();
 		const connectedEdges = await env.GRAPH_DB.prepare(`
-			SELECT * FROM edges_v2 WHERE from_node = ? AND org_id = ?
-			UNION
-			SELECT * FROM edges_v2 WHERE to_node = ? AND org_id = ?;
-		`).bind(nodeId,orgId, nodeId, orgId).all();
-
-		await env.GRAPH_DB.prepare(`
-			DELETE
+			SELECT *
 			FROM ${EDGES_TABLE}
-			WHERE (from_node = ? OR to_node = ?) AND org_id = ?
-		`).bind(nodeId, nodeId, orgId).run();
-		logger.performance('delete_connected_edges', Date.now() - edgesStart, {
-			edgeCount: connectedEdges.results?.length ?? 0
-		});
+			WHERE from_node = ?
+			  AND org_id = ?
+			UNION ALL
+			SELECT *
+			FROM edges_v2
+			WHERE to_node = ?
+			  AND org_id = ?;
+		`).bind(nodeId, orgId, nodeId, orgId).all();
 
-		// Delete the node
-		const nodeDeleteStart = Date.now();
+		if (connectedEdges.results && connectedEdges.results.length > 0) {
+			// Extract edge IDs for deletion
+			const edgeIdSet = new Set(connectedEdges.results.map((edge: any) => edge.id));
+			const edgeIds = Array.from(edgeIdSet);
+
+
+			// Create placeholders for the SQL query (?, ?, ?, etc.)
+			const placeholders = edgeIds.map(() => '?').join(',');
+
+			// Delete all connected edges in a single query
+			const deleteStart = Date.now();
+			await env.GRAPH_DB.prepare(`
+				DELETE
+				FROM edges_v2
+				WHERE id IN (${placeholders})
+				  AND org_id = ?
+			`).bind(...edgeIds, orgId).run();
+			logger.performance('d1_delete_connected_edges', Date.now() - deleteStart, {
+				count: edgeIds.length
+			});
+			// Remove from KV cache in parallel
+			const kvStart = Date.now();
+			await Promise.all(edgeIds.map(edgeId =>
+				Promise.all([
+					env.GRAPH_KV.delete(`adj:in:${orgId}:${edgeId}`),
+					env.GRAPH_KV.delete(`adj:out:${orgId}:${edgeId}`),
+					env.GRAPH_KV.delete(`edge:${orgId}:${edgeId}`)
+				])
+			));
+			logger.performance('kv_delete_edge_caches', Date.now() - kvStart, {
+				count: edgeIds.length * 2 // 2 entries per edge
+			});
+
+			logger.info('Deleted connected edges', {
+				orgId,
+				nodeId,
+				edgeCount: edgeIds.length
+			});
+			// Clean up edge caches
+		}
 		await env.GRAPH_DB.prepare(`
 			DELETE
 			FROM ${NODES_TABLE}
 			WHERE id = ? AND org_id = ?
 		`).bind(nodeId, orgId).run();
-		logger.performance('delete_node', Date.now() - nodeDeleteStart);
-
-		// Clean up KV cache
-		await Promise.all([
-			env.GRAPH_KV.delete(`node:${orgId}:${nodeId}`),
-			env.GRAPH_KV.delete(`adj:out:${orgId}:${nodeId}`),
-			env.GRAPH_KV.delete(`adj:in:${orgId}:${nodeId}`)
-		]);
-
-		// Clean up edge caches
-		if (connectedEdges.results) {
-			for (const edge of connectedEdges.results) {
-				await env.GRAPH_KV.delete(`edge:${orgId}:${edge.id}`);
-			}
-		}
-
+		await env.GRAPH_KV.delete(`node:${orgId}:${nodeId}`);
 
 		const result = {
 			deleted: nodeId,
@@ -446,6 +467,8 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 		return new Response(JSON.stringify(result), {
 			headers: {'Content-Type': 'application/json'}
 		});
+
+
 	} catch (error) {
 		logger.error('Failed to delete node', {orgId, nodeId});
 		throw error;
