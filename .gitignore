@@ -2,3 +2,4 @@
 /.idea/
 /cf-graphdb-api/worker-configuration.d.ts
 /performance/api/.env
+/problems/youtube/.env
