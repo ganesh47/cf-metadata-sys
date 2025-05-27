@@ -53,10 +53,6 @@ export async function initializeDatabase(db: D1Database, logger: Logger): Promis
 			// Node indexes
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_org_id ON ${NODES_TABLE}(org_id)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_type ON ${NODES_TABLE}(type)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_created_by ON ${NODES_TABLE}(created_by)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_updated_by ON ${NODES_TABLE}(updated_by)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_created_at ON ${NODES_TABLE}(created_at)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_updated_at ON ${NODES_TABLE}(updated_at)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_nodes_org_type ON ${NODES_TABLE}(org_id, type)`).run(),
 
 			// Edge indexes
@@ -64,8 +60,6 @@ export async function initializeDatabase(db: D1Database, logger: Logger): Promis
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_from ON ${EDGES_TABLE}(from_node)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_to ON ${EDGES_TABLE}(to_node)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_type ON ${EDGES_TABLE}(relationship_type)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_created_by ON ${EDGES_TABLE}(created_by)`).run(),
-			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_created_at ON ${EDGES_TABLE}(created_at)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_org_from ON ${EDGES_TABLE}(org_id, from_node)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_org_to ON ${EDGES_TABLE}(org_id, to_node)`).run(),
 			db.prepare(`CREATE INDEX IF NOT EXISTS idx_edges_org_from_to_type ON ${EDGES_TABLE}(org_id, from_node, to_node, relationship_type);`).run(),
