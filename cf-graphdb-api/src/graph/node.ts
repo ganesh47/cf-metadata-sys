@@ -103,9 +103,20 @@ export async function createNode(request: Request, env: Env, logger: Logger, par
 		// Store in D1 for relational queries
 		const d1Start = Date.now();
 		await env.GRAPH_DB.prepare(`
-			INSERT INTO ${NODES_TABLE} (id, org_id, type, properties, created_at, updated_at,
-										created_by, updated_by, user_agent, client_ip)
+			INSERT INTO ${NODES_TABLE} (
+				id, org_id, type, properties, created_at, updated_at,
+				created_by, updated_by, user_agent, client_ip
+			)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(id, org_id) DO UPDATE SET
+				type = excluded.type,
+				properties = excluded.properties,
+				created_at = excluded.created_at,
+				updated_at = excluded.updated_at,
+				created_by = excluded.created_by,
+				updated_by = excluded.updated_by,
+				user_agent = excluded.user_agent,
+				client_ip = excluded.client_ip
 		`).bind(
 			node.id,
 			node.org_id,
@@ -428,19 +439,6 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			logger.performance('d1_delete_connected_edges', Date.now() - deleteStart, {
 				count: edgeIds.length
 			});
-			// Remove from KV cache in parallel
-			const kvStart = Date.now();
-			await Promise.all(edgeIds.map(edgeId =>
-				Promise.all([
-					env.GRAPH_KV.delete(`adj:in:${orgId}:${edgeId}`),
-					env.GRAPH_KV.delete(`adj:out:${orgId}:${edgeId}`),
-					env.GRAPH_KV.delete(`edge:${orgId}:${edgeId}`)
-				])
-			));
-			logger.performance('kv_delete_edge_caches', Date.now() - kvStart, {
-				count: edgeIds.length * 2 // 2 entries per edge
-			});
-
 			logger.info('Deleted connected edges', {
 				orgId,
 				nodeId,

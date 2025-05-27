@@ -2,41 +2,6 @@ import GraphNode, {Env, GraphEdge, QueryResult, OrgParams} from "../types/graph"
 import {Logger} from "../logger/logger";
 import {EDGES_TABLE, NODES_TABLE} from "../constants";
 
-export async function updateAdjacencyList(
-    env: Env,
-    fromNode: string,
-    toNode: string,
-    relationshipType: string,
-    logger: Logger,
-    orgId: string
-): Promise<void> {
-	logger.debug('Updating adjacency lists', {orgId, fromNode, toNode, relationshipType});
-
-	try {
-		// Outgoing edges from fromNode
-		const outgoingKey = `adj:out:${orgId}:${fromNode}`;
-		const existingOutgoing = await env.GRAPH_KV.get(outgoingKey);
-		const outgoingList = existingOutgoing ? JSON.parse(existingOutgoing) : [];
-		outgoingList.push({node: toNode, type: relationshipType});
-		await env.GRAPH_KV.put(outgoingKey, JSON.stringify(outgoingList));
-
-		// Incoming edges to toNode
-		const incomingKey = `adj:in:${orgId}:${toNode}`;
-		const existingIncoming = await env.GRAPH_KV.get(incomingKey);
-		const incomingList = existingIncoming ? JSON.parse(existingIncoming) : [];
-		incomingList.push({node: fromNode, type: relationshipType});
-		await env.GRAPH_KV.put(incomingKey, JSON.stringify(incomingList));
-
-		logger.debug('Adjacency lists updated', {
-			orgId,
-			outgoingCount: outgoingList.length,
-			incomingCount: incomingList.length
-		});
-	} catch (error) {
-		logger.error('Failed to update adjacency lists', {orgId});
-		throw error;
-	}
-}
 
 export async function queryGraph(request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
 	const { orgId } = params;
@@ -208,68 +173,53 @@ async function traverseNode(
 		}
 		logger?.performance('traverse_node_lookup', Date.now() - nodeStart);
 
-		// Get adjacent nodes from KV adjacency list
-		const adjStart = Date.now();
-		const adjacencyData = await env.GRAPH_KV.get(`adj:out:${orgId}:${nodeId}`);
-		logger?.performance('traverse_adjacency_lookup', Date.now() - adjStart);
+		// Query edges directly from database instead of using KV cache
+		let edgeQuery = `SELECT * FROM ${EDGES_TABLE} WHERE from_node = ? AND org_id = ?`;
+		const edgeParams: any[] = [nodeId, orgId];
 
-		if (adjacencyData) {
-			const adjacentNodes = JSON.parse(adjacencyData) as { node: string, type: string }[];
+		// Filter by relationship types if provided
+		if (relationshipTypes && relationshipTypes.length > 0) {
+			const typePlaceholders = relationshipTypes.map(() => '?').join(',');
+			edgeQuery += ` AND relationship_type IN (${typePlaceholders})`;
+			edgeParams.push(...relationshipTypes);
+		}
 
-			// Replace the sequential traversal code with a parallel implementation
+		const edgesStart = Date.now();
+		const edgesResult = await env.GRAPH_DB.prepare(edgeQuery).bind(...edgeParams).all();
+		logger?.performance('traverse_edges_query', Date.now() - edgesStart, {
+			count: edgesResult.results?.length ?? 0
+		});
 
-			// First, collect all adjacency operations for the current level
-			const traversalPromises = [];
+		if (edgesResult.results && edgesResult.results.length > 0) {
+			// Process edges and collect adjacent nodes
+			const edges: GraphEdge[] = [];
+			const adjacentNodes: string[] = [];
 
-			for (const adjacent of adjacentNodes) {
-				if (relationshipTypes && !relationshipTypes.includes(adjacent.type)) {
-					continue;
-				}
+			for (const row of edgesResult.results) {
+				const edge: GraphEdge = {
+					id: row.id as string,
+					org_id: row.org_id as string,
+					from_node: row.from_node as string,
+					to_node: row.to_node as string,
+					relationship_type: row.relationship_type as string,
+					properties: JSON.parse(row.properties as string),
+					created_at: row.created_at as string,
+					updated_at: row.updated_at as string,
+					created_by: row.created_by as string,
+					updated_by: row.updated_by as string,
+					user_agent: row.user_agent as string,
+					client_ip: row.client_ip as string
+				};
 
-				// Create a promise to handle this adjacency operation
-				traversalPromises.push(
-					(async () => {
-						// Get edge details
-						const edgeStart = Date.now();
-						const edgeQuery = await env.GRAPH_DB.prepare(`
-        SELECT * FROM ${EDGES_TABLE} WHERE from_node = ? AND to_node = ? AND relationship_type = ? AND org_id = ?
-      `).bind(nodeId, adjacent.node, adjacent.type, orgId).first();
-						logger?.performance('traverse_edge_lookup', Date.now() - edgeStart);
-
-						if (edgeQuery) {
-							const edge: GraphEdge = {
-								id: edgeQuery.id as string,
-								org_id: edgeQuery.org_id as string,
-								from_node: edgeQuery.from_node as string,
-								to_node: edgeQuery.to_node as string,
-								relationship_type: edgeQuery.relationship_type as string,
-								properties: JSON.parse(edgeQuery.properties as string),
-								created_at: edgeQuery.created_at as string,
-								updated_at: edgeQuery.updated_at as string,
-								created_by: edgeQuery.created_by as string,
-								updated_by: edgeQuery.updated_by as string,
-								user_agent: edgeQuery.user_agent as string,
-								client_ip: edgeQuery.client_ip as string
-							};
-							return { edge, adjacentNode: adjacent.node };
-						}
-						return { edge: null, adjacentNode: adjacent.node };
-					})()
-				);
+				edges.push(edge);
+				adjacentNodes.push(row.to_node as string);
 			}
 
-			// Wait for all edge queries to complete in parallel
-			const edgeResults = await Promise.all(traversalPromises);
+			// Add edges to result
+			result.edges.push(...edges);
 
-			// Process the results and add edges to the result collection
-			for (const { edge} of edgeResults) {
-				if (edge) {
-					result.edges.push(edge);
-				}
-			}
-
-			// Now process the next level of traversals in parallel
-			const nextLevelPromises = edgeResults.map(({ adjacentNode }) =>
+			// Process the next level of traversals in parallel
+			const nextLevelPromises = adjacentNodes.map(adjacentNode =>
 				traverseNode(
 					env,
 					adjacentNode,

@@ -1,7 +1,6 @@
 import GraphNode, {Env, GraphEdge, OrgParams} from "../types/graph";
 import {Logger} from "../logger/logger";
 import {EDGES_TABLE, NODES_TABLE} from "../constants";
-import {updateAdjacencyList} from "./traversals";
 
 export async function importMetadata(request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
 	const { orgId } = params;
@@ -102,11 +101,6 @@ export async function importMetadata(request: Request, env: Env, logger: Logger,
 				edge.client_ip
 			).run();
 
-			// Update KV cache
-			await env.GRAPH_KV.put(`edge:${edge.org_id}:${edge.id}`, JSON.stringify(edge));
-
-			// Update adjacency lists
-			await updateAdjacencyList(env, edge.from_node, edge.to_node, edge.relationship_type, logger, edge.org_id);
 		}
 		logger.performance('import_edges', Date.now() - edgesStart);
 
