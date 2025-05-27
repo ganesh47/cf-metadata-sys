@@ -29,6 +29,6 @@ export const generateTimestampVersion = () => {
 
 	return `v${day}${month}${year}${hours}${minutes}`;
 };
-export const DB_VERSION = isCI ? generateTimestampVersion() : 'v2'; // Current database schema version
+export const DB_VERSION = isCI ? generateTimestampVersion() : 'v3'; // Current database schema version
 export const NODES_TABLE = `nodes_${DB_VERSION}`;
 export const EDGES_TABLE = `edges_${DB_VERSION}`;
