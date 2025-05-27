@@ -414,7 +414,7 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			  AND org_id = ?
 			UNION ALL
 			SELECT *
-			FROM edges_v2
+			FROM ${EDGES_TABLE}
 			WHERE to_node = ?
 			  AND org_id = ?;
 		`).bind(nodeId, orgId, nodeId, orgId).all();
