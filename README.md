@@ -20,6 +20,10 @@
 Thinking....building...thinking...
 
 ## Documentation
+This is part of an experiment on seeing to complent GraphDBs with LLMs to make it productive towards building metadata ecoysystems.
+Unlike Ontological knowledge graphs, this is an independent take.
+[Hypothesis](./metadata_systems_an_experiment.md) carries the detailed experimental hypothesis.
+[Outline](./OUTLINE.md) carries the outline of the experiment.
 
 The `cf-graphdb-api` package forms the API layer of the project. Detailed documentation is split across several files:
 
