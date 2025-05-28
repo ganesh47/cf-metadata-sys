@@ -143,10 +143,10 @@ export async function authenticate(
 	}
 
 	const {requiredPermission} = routeConfig;
-	const orgId = params?.orgId || '';
+	const orgId = params?.orgId ?? '';
 
-	// Check if user has the required permission for this organization
-	if (!hasPermission(result.user.permissions || '', orgId, requiredPermission)) {
+	// Check if a user has the required permission for this organization
+	if (!hasPermission((result.user.permissions ?? ''), orgId, requiredPermission)) {
 		return new Response(JSON.stringify({
 			message: 'Forbidden: Insufficient permissions to access this resource'
 		}), {

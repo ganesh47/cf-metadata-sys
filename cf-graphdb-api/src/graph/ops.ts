@@ -8,9 +8,9 @@ export async function importMetadata(request: Request, env: Env, logger: Logger,
 
 	try {
 		// Extract user info for audit trail
-		const userId = request.headers.get('X-User-ID') || 'system';
-		const userAgent = request.headers.get('User-Agent') || 'unknown';
-		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+		const userId = request.headers.get('X-User-ID') ?? 'system';
+		const userAgent = request.headers.get('User-Agent') ?? 'unknown';
+		const clientIp = request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For') ?? 'unknown';
 
 		const parseStart = Date.now();
 		const importData = await request.json() as {

@@ -74,9 +74,9 @@ export async function createNode(request: Request, env: Env, logger: Logger, par
 
 	try {
 		// Extract user info from the request headers (set by auth middleware)
-		const userId = request.headers.get('X-User-ID') || 'unknown';
-		const userAgent = request.headers.get('User-Agent') || 'unknown';
-		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+		const userId = request.headers.get('X-User-ID') ?? 'unknown';
+		const userAgent = request.headers.get('User-Agent') ?? 'unknown';
+		const clientIp = request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For') ?? 'unknown';
 
 		const parseStart = Date.now();
 		const body = await request.json() as Partial<GraphNode>;
@@ -191,7 +191,7 @@ export async function getNodes(request: Request, env: Env, logger: Logger, param
 		const countResult = await env.GRAPH_DB.prepare(countQuery).bind(...countParams).first();
 		logger.performance('d1_nodes_count_query', Date.now() - countStart);
 
-		const totalRecords: number = countResult?.total as number || 0;
+		const totalRecords: number = countResult?.total as number ?? 0;
 		const totalPages = Math.ceil(totalRecords / limit);
 
 		// Main query for fetching nodes with pagination
@@ -294,9 +294,9 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 
 	try {
 		// Extract user info for audit trail
-		const userId = request.headers.get('X-User-ID') || 'unknown';
-		const userAgent = request.headers.get('User-Agent') || 'unknown';
-		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+		const userId = request.headers.get('X-User-ID') ?? 'unknown';
+		const userAgent = request.headers.get('User-Agent') ?? 'unknown';
+		const clientIp = request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For') ?? 'unknown';
 
 		const parseStart = Date.now();
 		const body = await request.json() as Partial<GraphNode>;

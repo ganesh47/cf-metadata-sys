@@ -10,9 +10,9 @@ export async function createEdge(request: Request, env: Env, logger: Logger, par
 	logger.debug('Creating new edge', { orgId });
 
 	try {
-		const userId = request.headers.get('X-User-ID') || 'system';
-		const userAgent = request.headers.get('User-Agent') || 'unknown';
-		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+		const userId = request.headers.get('X-User-ID') ?? 'system';
+		const userAgent = request.headers.get('User-Agent') ?? 'unknown';
+		const clientIp = request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For') ?? 'unknown';
 
 		const parseStart = Date.now();
 		const body = await request.json() as Partial<GraphEdge>;
@@ -280,9 +280,9 @@ export async function updateEdge(
 
 	try {
 		// Extract user info for audit trail
-		const userId = request.headers.get('X-User-ID') || 'system';
-		const userAgent = request.headers.get('User-Agent') || 'unknown';
-		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+		const userId = request.headers.get('X-User-ID') ?? 'system';
+		const userAgent = request.headers.get('User-Agent') ?? 'unknown';
+		const clientIp = request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For') ?? 'unknown';
 
 		// Verify edge exists and belongs to this org
 		const existingEdge = await env.GRAPH_DB.prepare(`
