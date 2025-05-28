@@ -15,7 +15,9 @@
 		"deploy:stage": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env stage",
 		"deploy:dev": "opennextjs-cloudflare build && wrangler deploy --env dev",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
+		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+		"preinstall": "npx only-allow npm",
+		"prepare": "npm run cf-typegen && npm run type-check"
 	},
 	"dependencies": {
 		"@opennextjs/cloudflare": "^1.0.4",
