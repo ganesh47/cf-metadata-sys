@@ -18,7 +18,7 @@ on:
 
 jobs:
   app:
-    name: Stage cf-graphdb-app
+    name: Sonar Reporting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
