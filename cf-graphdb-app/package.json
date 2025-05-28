@@ -12,7 +12,7 @@
 		"test:coverage": "vitest run --coverage",
 		"dev:release": "npm run type-check && npm run test && npm run test:coverage && npm run deploy:dev",
 		"ci:stage": "npm ci && npm run type-check && npm run test && npm run test:coverage && npm run deploy:stage",
-		"deploy:stage": "opennextjs-cloudflare build && wrangler deploy --env stage",
+		"deploy:stage": "opennextjs-cloudflare build",
 		"deploy:dev": "opennextjs-cloudflare build && wrangler deploy --env dev",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
 		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
