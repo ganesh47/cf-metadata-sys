@@ -11,7 +11,7 @@
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"dev:release": "npm run type-check && npm run test && npm run test:coverage && npm run deploy:dev",
-		"ci:stage": "npm run type-check && npm run test && npm run test:coverage && npm run deploy:stage",
+		"ci:stage": "npm ci && npm run type-check && npm run test && npm run test:coverage && npm run deploy:stage",
 		"deploy:stage": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env stage",
 		"deploy:dev": "opennextjs-cloudflare build && wrangler deploy --env dev",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
