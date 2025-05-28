@@ -3,7 +3,7 @@
 import Together from 'together-ai';
 
 const togetherClient = new Together({
-	apiKey: process.env.TOGETHER_API_KEY || ''
+	apiKey:  ''
 });
 
 export async function embedTextUsingTogetherAI(text: string, apiKeyOverride?: string): Promise<number[]> {
