@@ -36,10 +36,10 @@ jobs:
           set -e          # fail on first error in main command block
           trap 'rm -f .dev.vars.stage' EXIT  # always delete .dev.vars.stage on exit
           echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" > .dev.vars.stage
-          echo "TOGETHER_API_KEY=${{ secrets.TOGETHER_API_KEY }}" > .dev.vars.stage
-          echo "QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" > .dev.vars.stage
-          echo "QDRANT_EDGE_COLLECTION=${{ secrets.QDRANT_EDGE_COLLECTION }}" > .dev.vars.stage
-          echo "QDRANT_URL=${{ secrets.QDRANT_URL }}" > .dev.vars.stage
+          echo "TOGETHER_API_KEY=${{ secrets.TOGETHER_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_EDGE_COLLECTION=${{ secrets.QDRANT_EDGE_COLLECTION }}" >> .dev.vars.stage
+          echo "QDRANT_URL=${{ secrets.QDRANT_URL }}" >> .dev.vars.stage
           npm run ci:stage
         env:
           NODE_ENV: stage
