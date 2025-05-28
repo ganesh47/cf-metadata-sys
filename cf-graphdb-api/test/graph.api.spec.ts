@@ -7,7 +7,7 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/graph API GraphDB Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = await createJwt(eenv,"test:*");
+	const validToken = await createJwt(eenv);
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
 		await initializeDatabase(eenv.GRAPH_DB, logger);

@@ -16,6 +16,11 @@ export interface GraphEdge {
 }
 
 export interface Env {
+    KEYCLOAK_TEST_PASS: string;
+	KEYCLOAK_TEST_USER: string;
+	OIDC_CLIENT_SECRET: string ;
+	OIDC_CLIENT_ID: string ;
+	OIDC_DISCOVERY_URL: string;
 	QDRANT_API_KEY: string ;
 	QDRANT_EDGE_COLLECTION: string;
     QDRANT_URL: string ;

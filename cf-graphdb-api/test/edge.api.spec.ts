@@ -8,7 +8,7 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/edge API GraphDB Worker Tests', async () => {
 	const eenv:Env = env as Env
-	const validToken = await createJwt(eenv,"test:*");
+	const validToken = await createJwt(eenv);
 	const {initStart, logger} = prepareLogger();
 	beforeAll(async ()=>{
 		await initializeDatabase(eenv.GRAPH_DB, logger);
@@ -163,7 +163,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			expect(updatedEdge.relationship_type).toBe('follows_closely');
 			expect(updatedEdge.properties.intensity).toBe('high');
 			expect(updatedEdge.properties.since).toBe('2024-01-01');
-			expect(updatedEdge.updated_by).toBe('1234');
+			expect(updatedEdge.updated_by).toBe('b36ad0b5-6712-4dab-94ff-1728d3d51f99');
 			expect(updatedEdge.updated_at).not.toBe(initialUpdatedAt);
 			expect(updatedEdge.created_at).toBe(edge.created_at);
 			expect(updatedEdge.org_id).toBe('test');
@@ -223,7 +223,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			expect(getResponse.status).toBe(404);
 		});
 
-		it('should prevent accessing edge from another organization', async () => {
+		it('should not be accessing edge with another organization', async () => {
 			// Create edge in test org
 			const createResponse = await SELF.fetch('http://localhost/test/edge', {
 				method: 'POST',
@@ -239,10 +239,10 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			const edge = await createResponse.json<any>();
 
 			// Create token for different org
-			const otherOrgToken = await createJwt(eenv, "other-org:*");
+			const otherOrgToken = await createJwt(eenv);
 
 			// Try to access the edge with the wrong org token
-			const getResponse = await SELF.fetch(`http://localhost/other-org/edge/${edge.id}`, {
+			const getResponse = await SELF.fetch(`http://localhost/load-test/edge/${edge.id}`, {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${otherOrgToken}`

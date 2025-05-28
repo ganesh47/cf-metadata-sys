@@ -5,6 +5,7 @@ import {createEdge, deleteEdge, getEdge, getEdges, updateEdge} from "./graph/edg
 import {queryGraph, traverseGraph} from "./graph/traversals";
 import {exportMetadata, importMetadata} from "./graph/ops";
 import {Logger} from "./logger/logger";
+import {authCallbackHandler} from "./auth";
 
 export type RouteHandler = (
 	request: Request,
@@ -12,6 +13,7 @@ export type RouteHandler = (
 	logger: Logger,
 	params: OrgParams
 ) => Promise<Response>;
+
 
 export const routeMap: Record<string, Record<string, { handler: RouteHandler, requiredPermission: string }>> = {
 	'/:orgId/nodes': {
@@ -65,7 +67,14 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	},
 	'/:orgId/metadata/import': {
 		'POST': {handler: importMetadata, requiredPermission: 'write'}
+	},
+	'/auth/callback': {
+		'GET': {
+			handler: authCallbackHandler, // <-- you'll define this
+			requiredPermission: 'public'  // Or skip auth check for this route
+		}
 	}
+
 };
 // Match a path to a route pattern and extract parameters
 export const matchRoute = (path: string): { pattern: string; params: Record<string, string> } | null => {
@@ -124,6 +133,5 @@ const compareParts = (patternParts: string[], pathParts: string[]): boolean => {
 }
 // Public routes that don't require authentication
 export const publicRoutes: string[] = [
-	// Add any routes that should be public
-	// Example: '/health', '/api/docs', etc.
+	'/auth/callback'
 ];

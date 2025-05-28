@@ -408,7 +408,6 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			WHERE to_node = ?
 			  AND org_id = ?;
 		`).bind(nodeId, orgId, nodeId, orgId).all();
-		console.log(JSON.stringify(connectedEdges));
 		if (connectedEdges.results && connectedEdges.results.length > 0) {
 			// Extract edge IDs for deletion
 			const edgeIdSet = new Set(connectedEdges.results.map((edge: any) => edge.id));

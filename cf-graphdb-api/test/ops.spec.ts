@@ -11,7 +11,7 @@ import {Env} from "../src/types/graph";
 describe('/metadata API Worker Tests', async () => {
 	const eenv = env as Env
 	const {initStart, logger} = prepareLogger();
-	const validToken = await createJwt(eenv,"test:*");
+	const validToken = await createJwt(eenv);
 	const importData = {
 		nodes: [
 			{

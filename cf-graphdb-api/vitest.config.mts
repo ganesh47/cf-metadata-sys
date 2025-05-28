@@ -11,6 +11,11 @@ export default defineWorkersConfig({
 				QDRANT_API_KEY: process.env.QDRANT_API_KEY ?? '',
 				QDRANT_EDGE_COLLECTION: process.env.QDRANT_EDGE_COLLECTION ?? '',
 				QDRANT_URL: process.env.QDRANT_URL ?? '',
+				OIDC_CLIENT_SECRET: process.env.OIDC_CLIENT_SECRET ?? '',
+				OIDC_CLIENT_ID: process.env.OIDC_CLIENT_ID ?? '',
+				OIDC_DISCOVERY_URL: process.env.OIDC_DISCOVERY_URL ?? '',
+				KEYCLOAK_TEST_USER: process.env.OIDC_DISCOVERY_URL ?? '',
+				KEYCLOAK_TEST_PASS: process.env.OIDC_DISCOVERY_URL ?? '',
 			}
 		},
 		poolOptions: {

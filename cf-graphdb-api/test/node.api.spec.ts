@@ -8,7 +8,7 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/node API GraphDB  Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = await createJwt(eenv, "test:*");
+	const validToken = await createJwt(eenv);
 	const {initStart, logger} = prepareLogger();
 
 	// Your existing test suites...
@@ -150,7 +150,6 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			expect(response.status).toBe(200);
 
 			const result = await response.json<any>();
-			console.log(result)
 			expect(result.properties.name).toBe('Updated Name');
 			expect(result.properties.status).toBe('active');
 			expect(result.updated_at).toBeDefined();
@@ -164,7 +163,6 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			expect(typeChangedResp.status).toBe(200);
 
 			const typeChangedRes = await typeChangedResp.json<any>();
-			console.log(typeChangedRes)
 			expect(typeChangedRes.properties.name).toBe('Updated Name');
 			expect(typeChangedRes.type).toBe('temp');
 			expect(typeChangedRes.properties.status).toBe('active');
