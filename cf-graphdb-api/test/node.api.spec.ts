@@ -139,6 +139,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 
 			// Update the node
 			const updateData = {
+				type:'test',
 				properties: {name: 'Updated Name', status: 'active'}
 			};
 
@@ -213,7 +214,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 				created_at: new Date().toISOString()
 			}
 
-			await SELF.fetch('http://localhost/test/edges', {
+			await SELF.fetch('http://localhost/test/edge', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
 				body: JSON.stringify(edgeData)
@@ -236,7 +237,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			expect(response.status).toBe(200);
 			const result = await response.json<any>();
 			expect(result.deleted).toBe('delete-test-node');
-			expect((await SELF.fetch("http://localhost/test/edges/del-edge-1", {
+			expect((await SELF.fetch("http://localhost/test/edge/del-edge-1", {
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${validToken}`

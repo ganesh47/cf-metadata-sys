@@ -58,14 +58,6 @@ export async function importMetadata(request: Request, env: Env, logger: Logger,
 			// Update KV cache
 			await env.GRAPH_KV.put(`node:${node.org_id}:${node.id}`, JSON.stringify(node));
 
-			// Update type mapping
-			const typeKey = `type:${node.org_id}:${node.type}`;
-			const existingNodes = await env.GRAPH_KV.get(typeKey);
-			const nodeIds = existingNodes ? JSON.parse(existingNodes) : [];
-			if (!nodeIds.includes(node.id)) {
-				nodeIds.push(node.id);
-				await env.GRAPH_KV.put(typeKey, JSON.stringify(nodeIds));
-			}
 		}
 		logger.performance('import_nodes', Date.now() - nodesStart);
 

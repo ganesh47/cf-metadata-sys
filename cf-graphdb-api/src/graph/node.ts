@@ -364,16 +364,6 @@ export async function updateNode(nodeId: string, request: Request, env: Env, log
 		logger.performance('kv_update_cache', Date.now() - kvStart);
 
 		// Update type mapping if the type changed
-		if (body.type && body.type !== existing.type) {
-			// Remove from old type mapping
-			const oldTypeKey = `type:${orgId}:${existing.type}`;
-			const oldNodes = await env.GRAPH_KV.get(oldTypeKey);
-			if (oldNodes) {
-				const oldNodeIds = JSON.parse(oldNodes).filter((id: string) => id !== nodeId);
-				await env.GRAPH_KV.put(oldTypeKey, JSON.stringify(oldNodeIds));
-			}
-
-		}
 
 		logger.info('Node updated successfully', {orgId, nodeId, type: updatedNode.type, updatedBy: userId});
 
@@ -418,7 +408,7 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			WHERE to_node = ?
 			  AND org_id = ?;
 		`).bind(nodeId, orgId, nodeId, orgId).all();
-
+		console.log(JSON.stringify(connectedEdges));
 		if (connectedEdges.results && connectedEdges.results.length > 0) {
 			// Extract edge IDs for deletion
 			const edgeIdSet = new Set(connectedEdges.results.map((edge: any) => edge.id));
@@ -432,7 +422,7 @@ export async function deleteNode(nodeId: string, env: Env, logger: Logger, param
 			const deleteStart = Date.now();
 			await env.GRAPH_DB.prepare(`
 				DELETE
-				FROM edges_v2
+				FROM ${EDGES_TABLE}
 				WHERE id IN (${placeholders})
 				  AND org_id = ?
 			`).bind(...edgeIds, orgId).run();
