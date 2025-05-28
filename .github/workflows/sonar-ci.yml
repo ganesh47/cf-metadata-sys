@@ -1,0 +1,80 @@
+name: Sonar reporting combining app and api
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'cf-graphdb-app/**'
+      - 'cf-graphdb-api/**'
+      - '!**.md'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - 'cf-graphdb-api/**'
+      - 'cf-graphdb-app/**'
+      - '!**.md'
+  workflow_dispatch:  # Allow manual triggering
+
+
+jobs:
+  app:
+    name: Stage cf-graphdb-app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js for App
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'cf-graphdb-app/package-lock.json'
+      - name: 🧪 Run Vitest with temp .env
+        shell: bash
+        run: |
+          set -e          # fail on first error in main command block
+          trap 'rm -f .dev.vars.stage' EXIT  # always delete .dev.vars.stage on exit
+          echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" > .dev.vars.stage
+          echo "TOGETHER_API_KEY=${{ secrets.TOGETHER_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_EDGE_COLLECTION=${{ secrets.QDRANT_EDGE_COLLECTION }}" >> .dev.vars.stage
+          echo "QDRANT_URL=${{ secrets.QDRANT_URL }}" >> .dev.vars.stage
+          npm run ci:stage
+        env:
+          NODE_ENV: stage
+        working-directory: cf-graphdb-app
+      - name: Setup Node.js for App
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'cf-graphdb-api/package-lock.json'
+      - name: 🧪 Run Vitest with temp .env
+        shell: bash
+        run: |
+          set -e          # fail on first error in main command block
+          trap 'rm -f .dev.vars.stage' EXIT  # always delete .dev.vars.stage on exit
+          echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" > .dev.vars.stage
+          echo "TOGETHER_API_KEY=${{ secrets.TOGETHER_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" >> .dev.vars.stage
+          echo "QDRANT_EDGE_COLLECTION=${{ secrets.QDRANT_EDGE_COLLECTION }}" >> .dev.vars.stage
+          echo "QDRANT_URL=${{ secrets.QDRANT_URL }}" >> .dev.vars.stage
+          npm run ci:stage
+        env:
+          NODE_ENV: stage
+        working-directory: cf-graphdb-api
+      - name: SonarQube Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        with:
+          args: >
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.sources=cf-graphdb-api/src,cf-graphdb-app/src
+            -Dsonar.tests=cf-graphdb-api/test,cf-graphdb-app/test
+            -Dsonar.test.inclusions=**/*.test.ts
+            -Dsonar.javascript.lcov.reportPaths=cf-graphdb-api/coverage/lcov.info,cf-graphdb-app/coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/*.test.ts
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_BASE_DIR: .

@@ -43,28 +43,6 @@ jobs:
           npm run ci:stage
         env:
           NODE_ENV: stage
-      - name: Upload test coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-coverage
-          path: cf-graphdb-api/coverage/
-          retention-days: 7
-      - name: SonarQube Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          projectBaseDir: cf-graphdb-api
-          args: >
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ secrets.SONAR_ORG }}
-            -Dsonar.sources=src
-            -Dsonar.tests=test
-            -Dsonar.test.inclusions=**/*.test.ts
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/*.test.ts
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_BASE_DIR: .
       - name: Deploy stage
         run: npm run deploy:stage
         env:
