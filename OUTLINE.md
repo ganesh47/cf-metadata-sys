@@ -1,6 +1,6 @@
 # Document Outline: Engineering Graph-Based Metadata Systems Augmented by LLMs
 
-## 1. Abstract / Technical Summary
+## 1. Summary
 
 * Overview of technical challenges in scalable metadata modeling and retrieval.
 * Synergies between graph databases and LLMs for optimizing metadata-centric engineering workflows.
@@ -189,16 +189,3 @@ We begin this system with a focus on Retrieval-Augmented Generation (RAG) applie
 * Online graph embedding updates.
 * Context-aware autonomous metadata agents.
 
-## 9. Adoption Playbook
-
-* Start with lineage graph PoC.
-* Integrate embedding store.
-* Add GraphRAG for semantic resolution.
-* Deploy on Cloudflare for edge-native scale.
-
-## 10. Appendix
-
-* Glossary.
-* Sample subgraph traversal code.
-* API interface specs.
-* Infra-as-code for Workers + Vectorize setup.
