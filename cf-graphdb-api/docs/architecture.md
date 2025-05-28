@@ -45,6 +45,7 @@ async function authGuard(req, env, next, required) {
 
 ### Tests
 
-The [`auth.spec.ts`](../test/auth.spec.ts) suite contains unit and integration tests that exercise the middleware. It verifies behaviour for missing tokens, invalid signatures and full end‑to‑end OIDC login. The integration test exchanges a code with the identity provider, validates the returned JWT using the provider's JWKS and then accesses protected routes. By asserting that the `permissions` claim is honoured, these tests demonstrate that scope checks prevent unauthorised access.
+All tests are run with security to ensure security first on everything, while ensuring feedback-loops remain fast and efficient.
+There are tests to validate the auth-callbacks too.
 
 See [environments.md](environments.md) for details on the different deployment environments.
