@@ -18,3 +18,12 @@
 ## Can we compose cloudflare primitives to compose a metadata system?
 
 Thinking....building...thinking...
+
+## Documentation
+
+The `cf-graphdb-api` package forms the API layer of the project. Detailed documentation is split across several files:
+
+- [Architecture](cf-graphdb-api/docs/architecture.md)
+- [Deployment Environments](cf-graphdb-api/docs/environments.md)
+- [API Reference](cf-graphdb-api/docs/api-reference.md)
+
