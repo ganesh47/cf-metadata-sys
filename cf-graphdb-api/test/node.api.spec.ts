@@ -8,13 +8,13 @@ import {initializeDatabase} from "../src/d1/initDb";
 
 describe('/node API GraphDB  Worker Tests', async () => {
 	const eenv = env as any
-	const validToken = await createJwt(eenv,"test:*");
+	const validToken = await createJwt(eenv, "test:*");
 	const {initStart, logger} = prepareLogger();
 
 	// Your existing test suites...
 	describe('Node Operations', () => {
 
-		beforeAll(async ()=>{
+		beforeAll(async () => {
 			console.log("Starting Init")
 			await initializeDatabase(eenv.GRAPH_DB, logger);
 			logger.performance('database_init', Date.now() - initStart);
@@ -61,7 +61,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			await SELF.fetch('http://localhost/test/nodes', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${validToken}`},
-				body: JSON.stringify(nodeData)
+				body: JSON.stringify({...nodeData, createBy: '1234'})
 			});
 
 			// Then retrieve it
@@ -81,10 +81,8 @@ describe('/node API GraphDB  Worker Tests', async () => {
 			const ts = (new Date()).toISOString();
 			const eenv = env as any
 			await eenv.GRAPH_DB.prepare(`
-				INSERT INTO ${NODES_TABLE} (
-					id, org_id, type, properties, created_at, updated_at,
-					created_by, updated_by, user_agent, client_ip
-				)
+				INSERT INTO ${NODES_TABLE} (id, org_id, type, properties, created_at, updated_at,
+											created_by, updated_by, user_agent, client_ip)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`).bind(
 				'test-node-124',
@@ -139,7 +137,7 @@ describe('/node API GraphDB  Worker Tests', async () => {
 
 			// Update the node
 			const updateData = {
-				type:'test',
+				type: 'test',
 				properties: {name: 'Updated Name', status: 'active'}
 			};
 

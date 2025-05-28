@@ -102,7 +102,7 @@ export async function authenticate(
 ): Promise<Response> {
 	// Get the JWT token from the Authorization header
 	const authHeader = request.headers.get('Authorization');
-	if (!authHeader || !authHeader.startsWith('Bearer ')) {
+	if (!authHeader?.startsWith('Bearer ')) {
 		return new Response(JSON.stringify({message: 'Unauthorized: Missing authentication token'}), {
 			status: 401,
 			headers: {'Content-Type': 'application/json'}
