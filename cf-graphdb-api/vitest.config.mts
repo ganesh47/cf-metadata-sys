@@ -1,7 +1,5 @@
 // vitest.config.mts
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
-import dotenv from 'dotenv'
-console.warn(process.env.JWT_SECRET)
 const environment = process.env.WRANGLER_ENV ?? 'dev';
 export default defineWorkersConfig({
 	test: {
@@ -9,6 +7,10 @@ export default defineWorkersConfig({
 			bindings: {
 				JWT_SECRET: process.env.JWT_SECRET ?? 'dummy-secret',
 				INIT_DB: process.env.INIT_DB ?? 'false',
+				TOGETHER_API_KEY: process.env.TOGETHER_API_KEY ?? '',
+				QDRANT_API_KEY: process.env.QDRANT_API_KEY ?? '',
+				QDRANT_EDGE_COLLECTION: process.env.QDRANT_EDGE_COLLECTION ?? '',
+				QDRANT_URL: process.env.QDRANT_URL ?? '',
 			}
 		},
 		poolOptions: {

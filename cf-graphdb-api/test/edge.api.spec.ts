@@ -56,7 +56,13 @@ describe('/edge API GraphDB Worker Tests', async () => {
 				from_node: nodeId1,
 				to_node: nodeId2,
 				relationship_type: 'follows',
-				properties: {since: '2024-01-01'}
+				properties: {
+					since: '2024-01-01',
+					description:"Long sentences form with the verbiage of things",
+					para:"something else",
+					vectorize: ["description","para"]
+
+				}
 			};
 
 			const response = await SELF.fetch('http://localhost/test/edge', {

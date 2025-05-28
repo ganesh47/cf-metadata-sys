@@ -2,12 +2,14 @@ import {Env, GraphEdge, OrgParams} from "../types/graph";
 import {Logger} from "../logger/logger";
 import {EDGES_TABLE} from "../constants";
 
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { embedTextUsingTogetherAI } from "../utils/embed";
+
 export async function createEdge(request: Request, env: Env, logger: Logger, params: OrgParams): Promise<Response> {
 	const { orgId } = params;
 	logger.debug('Creating new edge', { orgId });
 
 	try {
-		// Extract user info for audit trail
 		const userId = request.headers.get('X-User-ID') || 'system';
 		const userAgent = request.headers.get('User-Agent') || 'unknown';
 		const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
@@ -50,18 +52,17 @@ export async function createEdge(request: Request, env: Env, logger: Logger, par
 				id, org_id, from_node, to_node, relationship_type, properties,
 				created_at, updated_at, created_by, updated_by,
 				user_agent, client_ip
-			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(id,org_id) DO UPDATE SET
-			org_id = excluded.org_id,
-			from_node = excluded.from_node,
-			to_node = excluded.to_node,
-			relationship_type = excluded.relationship_type,
-			properties = excluded.properties,
-			updated_at = excluded.updated_at,
-			updated_by = excluded.updated_by,
-			user_agent = excluded.user_agent,
-			client_ip = excluded.client_ip
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(id,org_id) DO UPDATE SET
+				org_id = excluded.org_id,
+											  from_node = excluded.from_node,
+											  to_node = excluded.to_node,
+											  relationship_type = excluded.relationship_type,
+											  properties = excluded.properties,
+											  updated_at = excluded.updated_at,
+											  updated_by = excluded.updated_by,
+											  user_agent = excluded.user_agent,
+											  client_ip = excluded.client_ip
 		`).bind(
 			edge.id,
 			edge.org_id,
@@ -78,21 +79,54 @@ export async function createEdge(request: Request, env: Env, logger: Logger, par
 		).run();
 		logger.performance('d1_insert_edge', Date.now() - d1Start);
 
-		logger.info('Edge created successfully', {
-			orgId,
-			edgeId,
-			fromNode: edge.from_node,
-			toNode: edge.to_node,
-			type: edge.relationship_type,
-			createdBy: userId
-		});
+		// Embed specified vectorizable properties
+		const vectorChunks: string[] = [];
+		const vectorKeys = Array.isArray(edge.properties.vectorize) ? edge.properties.vectorize : [];
+
+		for (const key of vectorKeys) {
+			if (key in edge.properties) {
+				const value = edge.properties[key];
+				const normalizedKey = key.toLowerCase().replace(/_/g, ' ');
+
+				if (typeof value === 'string') {
+					vectorChunks.push(`${normalizedKey}: ${value.toLowerCase()}`);
+				} else if (typeof value === 'object' && value !== null) {
+					const description = typeof value.description === 'string' ? value.description : JSON.stringify(value);
+					vectorChunks.push(`${normalizedKey}: ${description.toLowerCase()}`);
+				}
+			}
+		}
+
+		if (vectorChunks.length > 0) {
+			const textToEmbed = vectorChunks.join("\n\n");
+			const embedding = await embedTextUsingTogetherAI(textToEmbed, env.TOGETHER_API_KEY);
+
+			const qdrant = new QdrantClient({ url: env.QDRANT_URL, apiKey: env.QDRANT_API_KEY });
+			await qdrant.upsert(env.QDRANT_EDGE_COLLECTION, {
+				points: [
+					{
+						id: edgeId,
+						vector: embedding,
+						payload: {
+							edge_id: edgeId,
+							from_node: edge.from_node,
+							to_node: edge.to_node,
+							org_id: orgId,
+							relationship_type: edge.relationship_type
+						}
+					}
+				]
+			});
+		}
+
+		logger.info('Edge created and embedded successfully', { edgeId });
 
 		return new Response(JSON.stringify(edge), {
-			headers: {'Content-Type': 'application/json'}
+			headers: { 'Content-Type': 'application/json' }
 		});
-	} catch (error) {
-		logger.error('Failed to create edge', { orgId });
-		throw error;
+	} catch (error:any) {
+		logger.error('Failed to create edge', { orgId, error });
+		return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 	}
 }
 

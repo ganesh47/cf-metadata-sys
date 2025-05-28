@@ -16,6 +16,10 @@ export interface GraphEdge {
 }
 
 export interface Env {
+	QDRANT_API_KEY: string ;
+	QDRANT_EDGE_COLLECTION: string;
+    QDRANT_URL: string ;
+	TOGETHER_API_KEY: string;
 	INIT_DB: string;
 	JWT_SECRET: string;
 	LOG_LEVEL: string;
