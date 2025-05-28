@@ -17,7 +17,7 @@
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
 		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
 		"preinstall": "npx only-allow npm",
-		"prepare": "npm run cf-typegen && npm run type-check"
+		"postinstall": "npm run cf-typegen"
 	},
 	"dependencies": {
 		"@opennextjs/cloudflare": "^1.0.4",
