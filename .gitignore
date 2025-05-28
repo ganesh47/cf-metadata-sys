@@ -3,3 +3,7 @@
 /cf-graphdb-api/worker-configuration.d.ts
 /performance/api/.env
 /problems/youtube/.env
+/cf-graphdb-auth/worker-configuration.d.ts
+/cf-graphdb-auth/.vscode/
+/cf-graphdb-auth/.wrangler/
+/cf-graphdb-auth/node_modules/
