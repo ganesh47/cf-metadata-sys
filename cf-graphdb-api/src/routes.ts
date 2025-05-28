@@ -20,15 +20,15 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	},
 	'/:orgId/nodes/:id': {
 		'GET': {
-			handler: async (request, env, logger, params) => getNode(params?.id || '', env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => getNode(params?.id || '', env, logger, params),
 			requiredPermission: 'read'
 		},
 		'PUT': {
-			handler: async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => updateNode(params?.id || '', request, env, logger, params),
 			requiredPermission: 'write'
 		},
 		'DELETE': {
-			handler: async (request, env, logger, params) => deleteNode(params?.id || '', env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => deleteNode(params?.id || '', env, logger, params),
 			requiredPermission: 'write'
 		}
 	},
@@ -38,19 +38,19 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	'/:orgId/edge/:id': {
 		'GET': {
 			handler: async (request, env, logger, params) => {
-				return getEdge(params?.id || '', env, logger, params as OrgParams);
+				return getEdge(params?.id || '', env, logger, params);
 			}, requiredPermission: 'read'
 		},
 		'PUT': {
-			handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params),
 			requiredPermission: 'write'
 		},
 		'PATCH': {
-			handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => updateEdge(params?.id || '', request, env, logger, params),
 			requiredPermission: 'write'
 		},
 		'DELETE': {
-			handler: async (request, env, logger, params) => deleteEdge(params?.id || '', env, logger, params as OrgParams),
+			handler: async (request, env, logger, params) => deleteEdge(params?.id || '', env, logger, params),
 			requiredPermission: 'write'
 		}
 	},
@@ -59,7 +59,7 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	'/:orgId/traverse': {'POST': {handler: traverseGraph, requiredPermission: 'read'}},
 	'/:orgId/metadata/export': {
 		'GET': {
-			handler: async (request, env, logger, params: OrgParams) => exportMetadata(env, logger, params as OrgParams),
+			handler: async (request, env, logger, params: OrgParams) => exportMetadata(env, logger, params),
 			requiredPermission: 'read'
 		}
 	},

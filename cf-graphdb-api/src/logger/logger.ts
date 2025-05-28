@@ -35,7 +35,7 @@ export class Logger {
 				requestId: this.context.requestId,
 				operation: this.context.operation,
 				message,
-				error: error?.message || error,
+				error: error?.message ?? error,
 				stack: error?.stack,
 				elapsed_ms: Date.now() - this.context.startTime
 			}));
