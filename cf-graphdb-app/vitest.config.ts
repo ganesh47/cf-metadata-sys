@@ -5,7 +5,7 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 export default defineConfig({
     plugins: [
         tsconfigPaths(),
-        react() // ⬅️ this adds automatic JSX runtime support
+        react() ,
     ],
     test: {
         globals: true,
