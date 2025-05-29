@@ -212,7 +212,7 @@ export const authCallbackHandler = async (
 		}
 
 		// 6. Set session cookie
-		const sessionCookie = `session=${idToken}; HttpOnly; Path=/; Secure; SameSite=Lax`
+		const sessionCookie = `session=${idToken}; HttpOnly; Path=/; Secure; SameSite=${env.HOME_URL?'None':'Lax'};`
 		logger.info('Authenticated user', { userId, email })
 
 		// 7. Redirect to home
@@ -220,7 +220,7 @@ export const authCallbackHandler = async (
 		const headers = new Headers()
 		headers.append('Location', destination)
 		headers.append('Set-Cookie', sessionCookie)
-		headers.append('Set-Cookie', 'session_visible=1; Path=/; Secure; SameSite=Lax; Max-Age=3600')
+		headers.append('Set-Cookie', `session_visible=1; Path=/; Secure; SameSite=${env.HOME_URL?'None':'Lax'}; Max-Age=3600`)
 		return new Response(null, {
 			status: 302,
 			headers: headers

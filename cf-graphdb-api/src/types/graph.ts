@@ -16,6 +16,7 @@ export interface GraphEdge {
 }
 
 export interface Env {
+	ROUTER_PREFIX: string;
 	CORS_ALLOWED_ORIGINS: string;
 	HOME_URL: string;
     KEYCLOAK_TEST_PASS: string;
