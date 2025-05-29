@@ -60,7 +60,8 @@ describe('/edge API GraphDB Worker Tests', async () => {
 					since: '2024-01-01',
 					description:"Long sentences form with the verbiage of things",
 					para:"something else",
-					vectorize: ["description","para"]
+					object_test:{name:"something",description:"something something"},
+					vectorize: ["description","para","object_test"]
 
 				}
 			};
@@ -121,6 +122,12 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			expect(result.relationship_type).toBe('knows');
 			expect(result.properties.since).toBe('2023-12-01');
 			expect(result.org_id).toBe('test');
+			expect((await SELF.fetch(`http://localhost/test/edge/sdsdsd`, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			})).status).toBe(404)
 		});
 
 		it('should update an edge', async () => {
@@ -179,8 +186,23 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			const retrievedEdge = await getResponse.json<any>();
 			expect(retrievedEdge.relationship_type).toBe('follows_closely');
 			expect(retrievedEdge.properties.intensity).toBe('high');
-		});
 
+			expect((await SELF.fetch(`http://localhost/test/edge/sdsds`, {
+					method: 'PATCH',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${validToken}`,
+					},
+					body: JSON.stringify({
+						relationship_type: 'follows_closely',
+						properties: {
+							since: '2024-01-01',
+							intensity: 'high'
+						}
+					})
+				})
+			).status).toBe(404)
+		})
 		it('should delete an edge', async () => {
 			// First create an edge
 			const createResponse = await SELF.fetch('http://localhost/test/edge', {
@@ -315,6 +337,26 @@ describe('/edge API GraphDB Worker Tests', async () => {
 
 			// Verify audit and org metadata in returned edges
 			fromEdges.edges.forEach((edge: any) => {
+				expect(edge.org_id).toBe('test');
+				expect(edge.created_at).toBeDefined();
+				expect(edge.updated_at).toBeDefined();
+				expect(edge.created_by).toBeDefined();
+				expect(edge.updated_by).toBeDefined();
+			});
+
+			const toResponse = await SELF.fetch(`http://localhost/test/edges?to=${nodeId2}`, {
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${validToken}`
+				}
+			});
+
+			const toEdges = await toResponse.json<any>();
+			expect(toEdges.edges.length).toBeGreaterThanOrEqual(1);
+			toEdges.edges.forEach((edge: any) => expect(edge.to_node).toBe(nodeId2));
+
+			// Verify audit and org metadata in returned edges
+			toEdges.edges.forEach((edge: any) => {
 				expect(edge.org_id).toBe('test');
 				expect(edge.created_at).toBeDefined();
 				expect(edge.updated_at).toBeDefined();
