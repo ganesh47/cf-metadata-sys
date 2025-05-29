@@ -11,5 +11,5 @@ export async function applyCORS(res: Response, origin = "http://localhost:3000")
 	const headers = new Headers(res.headers);
 	const cors = corsHeaders(origin);
 	Object.entries(cors).forEach(([k, v]) => headers.set(k, v));
-	return new Response(res.body, { ...res, headers });
+	return new Response(res.body, {...res, status: res.status, statusText: res.statusText, headers});
 }
