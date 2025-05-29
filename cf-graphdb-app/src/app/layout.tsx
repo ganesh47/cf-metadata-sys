@@ -27,6 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        data-testid={"parent-layout"}
       >
        <Providers>{children}</Providers>
       </body>
