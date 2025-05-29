@@ -2,6 +2,7 @@
 import {RouteHandler} from "./routes";
 import {Env, OrgParams} from "./types/graph";
 import {Logger} from "./logger/logger";
+import {applyCORS} from "./cors";
 
 export const applyMiddleware = async (
 	middleware: Middleware,
@@ -12,7 +13,11 @@ export const applyMiddleware = async (
 	params?: Record<string, string>
 ): Promise<Response> => {
 	const next = async (req: Request) => handler(req, env, logger, params as OrgParams);
-	return await middleware(request, env, logger, next, params as OrgParams);
+	const response = await middleware(request, env, logger, next, params as OrgParams);
+	if (env.CORS_ALLOWED_ORIGINS)
+		return applyCORS(response);
+	else
+		return response;
 };
 type Middleware = (
 	request: Request,

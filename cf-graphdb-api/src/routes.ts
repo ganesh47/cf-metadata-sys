@@ -6,6 +6,7 @@ import {queryGraph, traverseGraph} from "./graph/traversals";
 import {exportMetadata, importMetadata} from "./graph/ops";
 import {Logger} from "./logger/logger";
 import {authCallbackHandler} from "./auth";
+import {getOrgs} from "./org";
 
 export type RouteHandler = (
 	request: Request,
@@ -19,6 +20,9 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	'/:orgId/nodes': {
 		'POST': {handler: createNode, requiredPermission: 'write'},
 		'GET': {handler: getNodes, requiredPermission: 'read'}
+	},
+	'/orgs': {
+		'GET': {handler: getOrgs, requiredPermission: 'public'}
 	},
 	'/:orgId/nodes/:id': {
 		'GET': {
@@ -70,8 +74,8 @@ export const routeMap: Record<string, Record<string, { handler: RouteHandler, re
 	},
 	'/auth/callback': {
 		'GET': {
-			handler: authCallbackHandler, // <-- you'll define this
-			requiredPermission: 'public'  // Or skip auth check for this route
+			handler: authCallbackHandler,
+			requiredPermission: 'public'
 		}
 	}
 
@@ -133,5 +137,5 @@ const compareParts = (patternParts: string[], pathParts: string[]): boolean => {
 }
 // Public routes that don't require authentication
 export const publicRoutes: string[] = [
-	'/auth/callback'
+	'/auth/callback', '/orgs'
 ];

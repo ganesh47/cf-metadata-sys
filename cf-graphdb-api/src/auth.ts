@@ -216,12 +216,14 @@ export const authCallbackHandler = async (
 		logger.info('Authenticated user', { userId, email })
 
 		// 7. Redirect to home
+		let destination = env.HOME_URL ??`/`;
+		const headers = new Headers()
+		headers.append('Location', destination)
+		headers.append('Set-Cookie', sessionCookie)
+		headers.append('Set-Cookie', 'session_visible=1; Path=/; Secure; SameSite=Lax; Max-Age=3600')
 		return new Response(null, {
 			status: 302,
-			headers: {
-				'Location': `/`,
-				'Set-Cookie': sessionCookie
-			}
+			headers: headers
 		})
 	} catch (err: any) {
 		logger.error('OIDC callback error', { error: err.message })

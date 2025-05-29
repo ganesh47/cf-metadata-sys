@@ -16,6 +16,8 @@ export interface GraphEdge {
 }
 
 export interface Env {
+	CORS_ALLOWED_ORIGINS: string;
+	HOME_URL: string;
     KEYCLOAK_TEST_PASS: string;
 	KEYCLOAK_TEST_USER: string;
 	OIDC_CLIENT_SECRET: string ;
