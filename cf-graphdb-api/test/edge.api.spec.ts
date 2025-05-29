@@ -163,7 +163,7 @@ describe('/edge API GraphDB Worker Tests', async () => {
 			expect(updatedEdge.relationship_type).toBe('follows_closely');
 			expect(updatedEdge.properties.intensity).toBe('high');
 			expect(updatedEdge.properties.since).toBe('2024-01-01');
-			expect(updatedEdge.updated_by).toBe('b36ad0b5-6712-4dab-94ff-1728d3d51f99');
+			expect(updatedEdge.updated_by).toBe('d200cf81-cba3-4721-b497-d555d5b4a77d');
 			expect(updatedEdge.updated_at).not.toBe(initialUpdatedAt);
 			expect(updatedEdge.created_at).toBe(edge.created_at);
 			expect(updatedEdge.org_id).toBe('test');

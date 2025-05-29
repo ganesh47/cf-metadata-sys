@@ -79,6 +79,11 @@ jobs:
           echo "QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" >> .dev.vars.stage
           echo "QDRANT_EDGE_COLLECTION=${{ secrets.QDRANT_EDGE_COLLECTION }}" >> .dev.vars.stage
           echo "QDRANT_URL=${{ secrets.QDRANT_URL }}" >> .dev.vars.stage
+          echo "OIDC_CLIENT_SECRET=${{ secrets.OIDC_CLIENT_SECRET }}" >> .dev.vars.stage
+          echo "OIDC_CLIENT_ID=${{ secrets.OIDC_CLIENT_ID }}" >> .dev.vars.stage
+          echo "OIDC_DISCOVERY_URL=${{ secrets.OIDC_DISCOVERY_URL }}" >> .dev.vars.stage
+          echo "KEYCLOAK_TEST_PASS=${{ secrets.KEYCLOAK_TEST_PASS }}" >> .dev.vars.stage
+          echo "KEYCLOAK_TEST_USER=${{ secrets.KEYCLOAK_TEST_USER }}" >> .dev.vars.stage
           npm install
           npm run ci:stage
         env:
