@@ -16,7 +16,6 @@ TOTAL_NODES = 100
 TOTAL_EDGES = 200
 CONCURRENT_REQUESTS = int(os.getenv("CF_CONCURRENT_REQUESTS", 10))
 WORKER_URL = os.getenv("CF_WORKER_URL", "http://localhost")
-JWT_SECRET = os.getenv("ENV_JWT_SECRET", "test-secret")
 OIDC_ISSUER = os.getenv("OIDC_DISCOVERY_URL")
 
 # === Pre-Test Cleanup Requests ===

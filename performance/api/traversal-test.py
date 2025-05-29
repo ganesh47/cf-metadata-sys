@@ -15,7 +15,6 @@ TOTAL_NODES = 100
 TOTAL_EDGES = 200
 CONCURRENT_REQUESTS = int(os.getenv("CF_CONCURRENT_REQUESTS", 10))
 WORKER_URL = os.getenv("CF_WORKER_URL", "http://localhost")
-JWT_SECRET = os.getenv("ENV_JWT_SECRET", "test-secret")
 
 # === Pre-Test Cleanup Requests ===
 # First delete all edges (must be done before deleting nodes)
@@ -132,19 +131,41 @@ metrics = {
         "max_time": 0
     }
 }
+import requests
 
+# Config
+OIDC_ISSUER = os.getenv("OIDC_DISCOVERY_URL")
+
+# Fetch OIDC discovery document
+discovery = requests.get(OIDC_ISSUER).json()
 # === Create JWT Token ===
-auth_token = jwt.encode(
-    {
-        "sub": "load-test-user",
-        "email": "loadtest@example.com",
-        "permissions": "load-test:write",
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 3600,
+KEYCLOAK_TOKEN_URL = discovery["token_endpoint"]
+CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
+CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
+USERNAME = os.getenv("KEYCLOAK_TEST_USER")
+PASSWORD = os.getenv("KEYCLOAK_TEST_PASS")
+
+# Request token
+response = requests.post(
+    KEYCLOAK_TOKEN_URL,
+    data={
+        "grant_type": "password",
+        "client_id": CLIENT_ID,
+        "username": USERNAME,
+        "password": PASSWORD,
+        "scope": "openid",
     },
-    JWT_SECRET,
-    algorithm="HS256"
+    headers={
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
 )
+
+if response.status_code == 200:
+    tokens = response.json()
+    auth_token = tokens["id_token"]
+    print("Access Token:\n", auth_token)
+else:
+    print("Error:", response.status_code, response.text)
 
 # === Load Test Logic ===
 async def make_request(endpoint, count_in_metrics=True):
