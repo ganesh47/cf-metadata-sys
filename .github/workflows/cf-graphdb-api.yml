@@ -83,7 +83,11 @@ jobs:
         working-directory: performance/api
         env:
           CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
-          ENV_JWT_SECRET: ${{ secrets.ENV_JWT_SECRET }}
+          OIDC_DISCOVERY_URL: ${{ secrets.OIDC_DISCOVERY_URL }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          OIDC_CLIENT_ID: ${{ secrets.OIDC_CLIENT_ID }}
+          KEYCLOAK_TEST_PASS: ${{ secrets.KEYCLOAK_TEST_PASS }}
+          KEYCLOAK_TEST_USER: ${{ secrets.KEYCLOAK_TEST_USER }}
           CF_CONCURRENT_REQUESTS: 50
 
       - name: Upload test results

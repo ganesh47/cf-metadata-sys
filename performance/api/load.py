@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 import os
 import time
@@ -16,6 +17,7 @@ TOTAL_EDGES = 200
 CONCURRENT_REQUESTS = int(os.getenv("CF_CONCURRENT_REQUESTS", 10))
 WORKER_URL = os.getenv("CF_WORKER_URL", "http://localhost")
 JWT_SECRET = os.getenv("ENV_JWT_SECRET", "test-secret")
+OIDC_ISSUER = os.getenv("OIDC_DISCOVERY_URL")
 
 # === Pre-Test Cleanup Requests ===
 # First delete all edges (must be done before deleting nodes)
@@ -89,12 +91,14 @@ other_endpoints = [
     {"path": "/load-test/nodes/node1", "method": "GET"},
     {"path": "/load-test/nodes/node2", "method": "GET"},
     {"path": "/load-test/nodes/node3", "method": "GET"},
-    {"path": "/load-test/nodes/node1", "method": "PUT", "body": {"type":"test","properties": {"updated": True}}},
-    {"path": "/load-test/nodes/node2", "method": "PUT", "body": {"type":"test","properties": {"updated": True}}},
+    {"path": "/load-test/nodes/node1", "method": "PUT", "body": {"type": "test", "properties": {"updated": True}}},
+    {"path": "/load-test/nodes/node2", "method": "PUT", "body": {"type": "test", "properties": {"updated": True}}},
     {"path": "/load-test/edges", "method": "GET"},
     {"path": "/load-test/query", "method": "POST", "body": {"node_type": "test", "limit": 5}},
-    {"path": "/load-test/traverse", "method": "POST", "body": {"start_node": "node1", "relationship_type": "CONNECTS_TO", "max_depth": 10}},
-    {"path": "/load-test/traverse", "method": "POST", "body": {"start_node": "node2", "relationship_type": "DEPENDS_ON", "max_depth": 10}},
+    {"path": "/load-test/traverse", "method": "POST",
+     "body": {"start_node": "node1", "relationship_type": "CONNECTS_TO", "max_depth": 10}},
+    {"path": "/load-test/traverse", "method": "POST",
+     "body": {"start_node": "node2", "relationship_type": "DEPENDS_ON", "max_depth": 10}},
     {"path": "/load-test/metadata/export", "method": "GET"},
     {"path": "/load-test/metadata/import", "method": "POST", "body": {"nodes": [], "edges": []}},
 ]
@@ -134,17 +138,42 @@ metrics = {
 }
 
 # === Create JWT Token ===
-auth_token = jwt.encode(
-    {
-        "sub": "load-test-user",
-        "email": "loadtest@example.com",
-        "permissions": "load-test:write",
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 3600,
+import requests
+
+# Config
+
+# Fetch OIDC discovery document
+discovery = requests.get(OIDC_ISSUER).json()
+
+# Extract token endpoint dynamically
+KEYCLOAK_TOKEN_URL = discovery["token_endpoint"]
+CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
+CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
+USERNAME = os.getenv("KEYCLOAK_TEST_USER")
+PASSWORD = os.getenv("KEYCLOAK_TEST_PASS")
+
+# Request token
+response = requests.post(
+    KEYCLOAK_TOKEN_URL,
+    data={
+        "grant_type": "password",
+        "client_id": CLIENT_ID,
+        "username": USERNAME,
+        "password": PASSWORD,
+        "scope": "openid",
     },
-    JWT_SECRET,
-    algorithm="HS256"
+    headers={
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
 )
+
+if response.status_code == 200:
+    tokens = response.json()
+    auth_token = tokens["id_token"]
+    print("Access Token:\n", auth_token)
+else:
+    print("Error:", response.status_code, response.text)
+
 
 # === Load Test Logic ===
 async def make_request(endpoint, count_in_metrics=True):
@@ -228,6 +257,7 @@ async def make_request(endpoint, count_in_metrics=True):
                 metrics["latency_distribution"][">1000ms"] += 1
         return None
 
+
 # === Clean Environment ===
 async def clean_environment():
     print("Cleaning previous test data...")
@@ -273,12 +303,15 @@ async def clean_environment():
         results = await asyncio.gather(*batch, return_exceptions=True)
 
         for result in results:
-            if isinstance(result, Exception) or result is None or (hasattr(result, 'status_code') and result.status_code >= 400):
+            if isinstance(result, Exception) or result is None or (
+                    hasattr(result, 'status_code') and result.status_code >= 400):
                 metrics["cleanup_stats"]["failure"] += 1
             else:
                 metrics["cleanup_stats"]["success"] += 1
 
-    print(f"Cleanup complete: {metrics['cleanup_stats']['success']} successful, {metrics['cleanup_stats']['failure']} failed")
+    print(
+        f"Cleanup complete: {metrics['cleanup_stats']['success']} successful, {metrics['cleanup_stats']['failure']} failed")
+
 
 # === Setup Environment ===
 async def setup_environment():
@@ -299,7 +332,9 @@ async def setup_environment():
 
     setup_end = time.perf_counter()
     metrics["operation_phase_times"]["setup"] = (setup_end - setup_start) * 1000
-    print(f"Environment setup complete with {len(setup_nodes)} requests in {metrics['operation_phase_times']['setup']:.2f}ms")
+    print(
+        f"Environment setup complete with {len(setup_nodes)} requests in {metrics['operation_phase_times']['setup']:.2f}ms")
+
 
 # === Calculate Percentiles ===
 def calculate_latency_percentiles():
@@ -319,9 +354,12 @@ def calculate_latency_percentiles():
     # Calculate percentiles
     percentiles = {
         "median": statistics.median(all_response_times) if all_response_times else 0,
-        "p90": all_response_times[int(total_count * 0.9)] if total_count > 10 else all_response_times[-1] if all_response_times else 0,
-        "p95": all_response_times[int(total_count * 0.95)] if total_count > 20 else all_response_times[-1] if all_response_times else 0,
-        "p99": all_response_times[int(total_count * 0.99)] if total_count > 100 else all_response_times[-1] if all_response_times else 0
+        "p90": all_response_times[int(total_count * 0.9)] if total_count > 10 else all_response_times[
+            -1] if all_response_times else 0,
+        "p95": all_response_times[int(total_count * 0.95)] if total_count > 20 else all_response_times[
+            -1] if all_response_times else 0,
+        "p99": all_response_times[int(total_count * 0.99)] if total_count > 100 else all_response_times[
+            -1] if all_response_times else 0
     }
 
     # Calculate per-endpoint percentiles
@@ -343,6 +381,7 @@ def calculate_latency_percentiles():
         "endpoints": endpoint_percentiles
     }
 
+
 # === Generate Latency Report ===
 def generate_latency_report():
     # Calculate percentiles
@@ -350,9 +389,9 @@ def generate_latency_report():
 
     # Format the report
     total_requests = metrics["success_count"] + metrics["failure_count"]
-    report = "\n" + "="*80 + "\n"
+    report = "\n" + "=" * 80 + "\n"
     report += "                       DETAILED LATENCY METRICS\n"
-    report += "="*80 + "\n\n"
+    report += "=" * 80 + "\n\n"
 
     # Test summary
     report += "TEST SUMMARY:\n"
@@ -361,8 +400,9 @@ def generate_latency_report():
     report += f"  Duration: {metrics['test_duration_seconds']:.2f} seconds\n"
     report += f"  Total requests: {total_requests}\n"
     report += f"  Success rate: {metrics['success_count']}/{total_requests} "
-    report += f"({(metrics['success_count']/total_requests*100):.2f}%)\n" if total_requests > 0 else "(0.00%)\n"
-    report += f"  Requests per second: {total_requests/metrics['test_duration_seconds']:.2f}\n" if metrics['test_duration_seconds'] > 0 else "  Requests per second: 0.00\n"
+    report += f"({(metrics['success_count'] / total_requests * 100):.2f}%)\n" if total_requests > 0 else "(0.00%)\n"
+    report += f"  Requests per second: {total_requests / metrics['test_duration_seconds']:.2f}\n" if metrics[
+                                                                                                         'test_duration_seconds'] > 0 else "  Requests per second: 0.00\n"
     report += "\n"
 
     # Phase timing
@@ -432,9 +472,10 @@ def generate_latency_report():
         if len(metrics["errors"]) > 10:
             report += f"  ... and {len(metrics['errors']) - 10} more errors\n"
 
-    report += "\n" + "="*80
+    report += "\n" + "=" * 80
 
     return report
+
 
 # === Run Load Test ===
 async def run_load_test():
@@ -521,8 +562,9 @@ async def run_load_test():
     print("\n=== Load Test Results ===")
     print(f"Total requests: {total_requests}")
     if total_requests > 0:
-        print(f"Success rate: {metrics['success_count']}/{total_requests} ({metrics['success_count']/total_requests*100:.2f}%)")
-        print(f"Avg response time: {metrics['total_time']/total_requests:.2f}ms")
+        print(
+            f"Success rate: {metrics['success_count']}/{total_requests} ({metrics['success_count'] / total_requests * 100:.2f}%)")
+        print(f"Avg response time: {metrics['total_time'] / total_requests:.2f}ms")
     else:
         print("No requests recorded in metrics")
 
@@ -535,7 +577,7 @@ async def run_load_test():
         if data["count"] > 0:
             print(f"  {key}:")
             print(f"    Count: {data['count']}")
-            print(f"    Avg time: {data['total_time']/data['count']:.2f}ms")
+            print(f"    Avg time: {data['total_time'] / data['count']:.2f}ms")
             print(f"    Min time: {data['min']:.2f}ms")
             print(f"    Max time: {data['max']:.2f}ms")
 
@@ -559,6 +601,7 @@ async def run_load_test():
         print(f"\nLatency report saved to {filename}")
     except Exception as e:
         print(f"\nError saving latency report: {str(e)}")
+
 
 # === Entry Point ===
 if __name__ == "__main__":
