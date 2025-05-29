@@ -149,7 +149,7 @@ export const authCallbackHandler = async (
 	try {
 		const url = new URL(request.url)
 		const code = url.searchParams.get('code')
-		const redirectUri = env.ROUTER_PREFIX?`${url.origin}/${env.ROUTER_PREFIX}/auth/callback`:`${url.origin}/auth/callback`
+		const redirectUri = env.ROUTER_PREFIX?`${env.ROUTER_PREFIX}/auth/callback`:`${url.origin}/auth/callback`
 
 		if (!code) {
 			return new Response('Missing code parameter', { status: 400 })
@@ -176,7 +176,7 @@ export const authCallbackHandler = async (
 
 		if (!tokenRes.ok) {
 			const errText = await tokenRes.text()
-			logger.error('Token exchange failed', { status: tokenRes.status, body: errText })
+			logger.error('Token exchange failed', { status: tokenRes.status, body: errText, redirectUri })
 			return new Response('Token exchange failed ', { status: 401 })
 		}
 
