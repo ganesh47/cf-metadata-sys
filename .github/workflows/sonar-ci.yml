@@ -84,6 +84,7 @@ jobs:
           echo "OIDC_DISCOVERY_URL=${{ secrets.OIDC_DISCOVERY_URL }}" >> .dev.vars.stage
           echo "KEYCLOAK_TEST_PASS=${{ secrets.KEYCLOAK_TEST_PASS }}" >> .dev.vars.stage
           echo "KEYCLOAK_TEST_USER=${{ secrets.KEYCLOAK_TEST_USER }}" >> .dev.vars.stage
+          echo "CORS_ALLOWED_ORIGINS=http://localhost:3000" >> .dev.vars.stage
           npm install
           npm run ci:stage
         env:
