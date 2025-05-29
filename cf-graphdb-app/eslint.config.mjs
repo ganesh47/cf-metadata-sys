@@ -1,3 +1,4 @@
+// eslint.config.js or eslint.config.ts
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
@@ -9,15 +10,21 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-const eslintConfig = [
+export default [
+  // Add Next.js + TypeScript rules
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+
+  // Apply overrides for TypeScript files
   {
-    files: ["*.tsx", "*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.json",
+      },
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "no-console": "off",
     },
-  }
+  },
 ];
-
-export default eslintConfig;
