@@ -14,7 +14,6 @@ const handleRequest = async (path: string, method: string, request: Request, env
 		const handlers = routeMap[pattern];
 		if (handlers[method]) {
 			// Check if the route is public or requires authentication
-			console.log(path,publicRoutes?.includes(path),publicRoutes)
 			if (publicRoutes?.includes(path)) {
 				return await handlers[method].handler(request, env, logger, params as OrgParams);
 			} else {
