@@ -149,7 +149,7 @@ export const authCallbackHandler = async (
 	try {
 		const url = new URL(request.url)
 		const code = url.searchParams.get('code')
-		const redirectUri = `${url.origin}/auth/callback`
+		const redirectUri = env.ROUTER_PREFIX?`${url.origin}/${env.ROUTER_PREFIX}/auth/callback`:`${url.origin}/auth/callback`
 
 		if (!code) {
 			return new Response('Missing code parameter', { status: 400 })
