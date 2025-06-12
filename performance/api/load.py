@@ -10,6 +10,7 @@ import random
 import statistics
 import datetime
 from collections import defaultdict
+from report_utils import generate_html_report
 
 # === Config ===
 TOTAL_NODES = 100
@@ -591,13 +592,20 @@ async def run_load_test():
     latency_report = generate_latency_report()
     print(latency_report)
 
-    # Save the report to a file
+    # Save text and HTML reports
     try:
         timestamp = metrics["test_end_time"].strftime("%Y%m%d_%H%M%S")
-        filename = f"load_test_latency_{timestamp}.log"
-        with open(filename, "w") as f:
+        text_filename = f"load_test_latency_{timestamp}.log"
+        with open(text_filename, "w") as f:
             f.write(latency_report)
-        print(f"\nLatency report saved to {filename}")
+        print(f"\nLatency report saved to {text_filename}")
+
+        percentiles = calculate_latency_percentiles()
+        html_content = generate_html_report(metrics, percentiles)
+        html_filename = f"load_test_latency_{timestamp}.html"
+        with open(html_filename, "w") as f:
+            f.write(html_content)
+        print(f"HTML report saved to {html_filename}")
     except Exception as e:
         print(f"\nError saving latency report: {str(e)}")
 
