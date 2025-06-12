@@ -9,6 +9,11 @@ import random
 import statistics
 import datetime
 from collections import defaultdict
+from report_utils import (
+    generate_html_report,
+    calculate_latency_percentiles,
+    generate_latency_report,
+)
 
 # === Config ===
 TOTAL_NODES = 100
@@ -121,15 +126,40 @@ metrics = {
     "success_count": 0,
     "failure_count": 0,
     "status_codes": defaultdict(int),
-    "endpoints": defaultdict(lambda: {"count": 0, "total_time": 0, "min": float("inf"), "max": 0}),
+    "endpoints": defaultdict(
+        lambda: {
+            "count": 0,
+            "total_time": 0,
+            "min": float("inf"),
+            "max": 0,
+            "response_times": [],
+        }
+    ),
     "errors": [],
     "cleanup_stats": {"success": 0, "failure": 0},
+    "latency_distribution": {
+        "<50ms": 0,
+        "50-100ms": 0,
+        "100-250ms": 0,
+        "250-500ms": 0,
+        "500-1000ms": 0,
+        ">1000ms": 0,
+    },
+    "test_start_time": None,
+    "test_end_time": None,
+    "test_duration_seconds": 0,
+    "operation_phase_times": {
+        "setup": 0,
+        "node_creation": 0,
+        "edge_creation": 0,
+        "other_operations": 0,
+    },
     "linear_path_traversal": {
         "times": [],
         "avg_time": 0,
         "min_time": float("inf"),
-        "max_time": 0
-    }
+        "max_time": 0,
+    },
 }
 import requests
 
@@ -202,6 +232,20 @@ async def make_request(endpoint, count_in_metrics=True):
             ep["total_time"] += duration
             ep["min"] = min(ep["min"], duration)
             ep["max"] = max(ep["max"], duration)
+            ep["response_times"].append(duration)
+
+            if duration < 50:
+                metrics["latency_distribution"]["<50ms"] += 1
+            elif duration < 100:
+                metrics["latency_distribution"]["50-100ms"] += 1
+            elif duration < 250:
+                metrics["latency_distribution"]["100-250ms"] += 1
+            elif duration < 500:
+                metrics["latency_distribution"]["250-500ms"] += 1
+            elif duration < 1000:
+                metrics["latency_distribution"]["500-1000ms"] += 1
+            else:
+                metrics["latency_distribution"][">1000ms"] += 1
 
             if res.status_code >= 200 and res.status_code < 400:
                 metrics["success_count"] += 1
@@ -217,6 +261,22 @@ async def make_request(endpoint, count_in_metrics=True):
             metrics["total_time"] += duration
             metrics["failure_count"] += 1
             metrics["errors"].append(f"{key} failed: {str(e)}")
+
+            ep = metrics["endpoints"][key]
+            ep["response_times"].append(duration)
+
+            if duration < 50:
+                metrics["latency_distribution"]["<50ms"] += 1
+            elif duration < 100:
+                metrics["latency_distribution"]["50-100ms"] += 1
+            elif duration < 250:
+                metrics["latency_distribution"]["100-250ms"] += 1
+            elif duration < 500:
+                metrics["latency_distribution"]["250-500ms"] += 1
+            elif duration < 1000:
+                metrics["latency_distribution"]["500-1000ms"] += 1
+            else:
+                metrics["latency_distribution"][">1000ms"] += 1
         return None, duration
 
 # === Clean Environment ===
@@ -337,13 +397,18 @@ async def run_linear_path_traversal_test(iterations=5):
 
 # === Run Load Test ===
 async def run_load_test():
+    metrics["test_start_time"] = datetime.datetime.now()
+    test_start = time.perf_counter()
     print(f"Running load test on {WORKER_URL}")
 
     # Run environment setup first
+    setup_start = time.perf_counter()
     await setup_environment()
+    metrics["operation_phase_times"]["setup"] = (time.perf_counter() - setup_start) * 1000
 
     # First, create all 100 nodes
     print(f"Phase 1: Creating {TOTAL_NODES} nodes...")
+    node_start = time.perf_counter()
     tasks = []
 
     for endpoint in node_creation_endpoints:
@@ -357,12 +422,14 @@ async def run_load_test():
     # Run any remaining node tasks
     if tasks:
         await asyncio.gather(*tasks)
+    metrics["operation_phase_times"]["node_creation"] = (time.perf_counter() - node_start) * 1000
 
     # Reset tasks
     tasks = []
 
     # Then, create all 200 edges
     print(f"Phase 2: Creating {TOTAL_EDGES} edges...")
+    edge_start = time.perf_counter()
 
     for endpoint in edge_creation_endpoints:
         tasks.append(make_request(endpoint))
@@ -375,6 +442,7 @@ async def run_load_test():
     # Run any remaining edge tasks
     if tasks:
         await asyncio.gather(*tasks)
+    metrics["operation_phase_times"]["edge_creation"] = (time.perf_counter() - edge_start) * 1000
 
     # Create linear path edges (node1 -> node2 -> ... -> node11)
     print("Phase 2b: Creating linear path edges (node1 -> node11)...")
@@ -388,6 +456,7 @@ async def run_load_test():
 
     # Run other operations
     print("Phase 3: Running other operations...")
+    other_start = time.perf_counter()
     other_count = 50  # Number of other operations to run
 
     for i in range(other_count):
@@ -402,9 +471,13 @@ async def run_load_test():
     # Run any remaining other operation tasks
     if tasks:
         await asyncio.gather(*tasks)
+    metrics["operation_phase_times"]["other_operations"] = (time.perf_counter() - other_start) * 1000
 
     # Run linear path traversal test
     await run_linear_path_traversal_test(iterations=5)
+
+    metrics["test_end_time"] = datetime.datetime.now()
+    metrics["test_duration_seconds"] = time.perf_counter() - test_start
 
     # === Report ===
     total_requests = metrics["success_count"] + metrics["failure_count"]
@@ -433,6 +506,26 @@ async def run_load_test():
         print("\nErrors:")
         for err in metrics["errors"]:
             print(f"  - {err}")
+
+    # === Enhanced Latency Report ===
+    latency_report = generate_latency_report(metrics)
+    print(latency_report)
+
+    try:
+        timestamp = metrics["test_end_time"].strftime("%Y%m%d_%H%M%S")
+        text_filename = f"traversal_latency_{timestamp}.log"
+        with open(text_filename, "w") as f:
+            f.write(latency_report)
+        print(f"Latency report saved to {text_filename}")
+
+        percentiles = calculate_latency_percentiles(metrics)
+        html_content = generate_html_report(metrics, percentiles)
+        html_filename = f"traversal_latency_{timestamp}.html"
+        with open(html_filename, "w") as f:
+            f.write(html_content)
+        print(f"HTML report saved to {html_filename}")
+    except Exception as e:
+        print(f"Error saving latency report: {str(e)}")
 
 # === Entry Point ===
 if __name__ == "__main__":
