@@ -51,6 +51,9 @@ jobs:
           npm run ci:stage
         env:
           NODE_ENV: stage
+      - name: Scan for vulnerabilities
+        run: npm audit
+        working-directory: cf-graphdb-api
       - name: Deploy stage
         run: npm run deploy:stage
         env:
