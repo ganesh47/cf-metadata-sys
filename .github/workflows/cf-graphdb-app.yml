@@ -43,6 +43,9 @@ jobs:
           npm run ci:stage
         env:
           NODE_ENV: stage
+      - name: Attempt to fix vulnerabilities
+        run: npm audit fix
+        working-directory: cf-graphdb-app
       - name: Scan for vulnerabilities
         run: npm audit
         working-directory: cf-graphdb-app
