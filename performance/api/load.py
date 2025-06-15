@@ -10,6 +10,11 @@ import random
 import statistics
 import datetime
 from collections import defaultdict
+from report_utils import (
+    generate_html_report,
+    calculate_latency_percentiles,
+    generate_latency_report,
+)
 
 # === Config ===
 TOTAL_NODES = 100
@@ -335,147 +340,6 @@ async def setup_environment():
         f"Environment setup complete with {len(setup_nodes)} requests in {metrics['operation_phase_times']['setup']:.2f}ms")
 
 
-# === Calculate Percentiles ===
-def calculate_latency_percentiles():
-    all_response_times = []
-
-    # Collect all response times for overall percentile calculations
-    for key, data in metrics["endpoints"].items():
-        all_response_times.extend(data["response_times"])
-
-    if not all_response_times:
-        return {}
-
-    # Sort times for percentile calculations
-    all_response_times.sort()
-    total_count = len(all_response_times)
-
-    # Calculate percentiles
-    percentiles = {
-        "median": statistics.median(all_response_times) if all_response_times else 0,
-        "p90": all_response_times[int(total_count * 0.9)] if total_count > 10 else all_response_times[
-            -1] if all_response_times else 0,
-        "p95": all_response_times[int(total_count * 0.95)] if total_count > 20 else all_response_times[
-            -1] if all_response_times else 0,
-        "p99": all_response_times[int(total_count * 0.99)] if total_count > 100 else all_response_times[
-            -1] if all_response_times else 0
-    }
-
-    # Calculate per-endpoint percentiles
-    endpoint_percentiles = {}
-    for key, data in metrics["endpoints"].items():
-        times = data["response_times"]
-        if times:
-            times.sort()
-            count = len(times)
-            endpoint_percentiles[key] = {
-                "median": statistics.median(times),
-                "p90": times[int(count * 0.9)] if count > 10 else times[-1],
-                "p95": times[int(count * 0.95)] if count > 20 else times[-1],
-                "p99": times[int(count * 0.99)] if count > 100 else times[-1]
-            }
-
-    return {
-        "overall": percentiles,
-        "endpoints": endpoint_percentiles
-    }
-
-
-# === Generate Latency Report ===
-def generate_latency_report():
-    # Calculate percentiles
-    percentiles = calculate_latency_percentiles()
-
-    # Format the report
-    total_requests = metrics["success_count"] + metrics["failure_count"]
-    report = "\n" + "=" * 80 + "\n"
-    report += "                       DETAILED LATENCY METRICS\n"
-    report += "=" * 80 + "\n\n"
-
-    # Test summary
-    report += "TEST SUMMARY:\n"
-    report += f"  Start time: {metrics['test_start_time'].isoformat() if metrics['test_start_time'] else 'N/A'}\n"
-    report += f"  End time: {metrics['test_end_time'].isoformat() if metrics['test_end_time'] else 'N/A'}\n"
-    report += f"  Duration: {metrics['test_duration_seconds']:.2f} seconds\n"
-    report += f"  Total requests: {total_requests}\n"
-    report += f"  Success rate: {metrics['success_count']}/{total_requests} "
-    report += f"({(metrics['success_count'] / total_requests * 100):.2f}%)\n" if total_requests > 0 else "(0.00%)\n"
-    report += f"  Requests per second: {total_requests / metrics['test_duration_seconds']:.2f}\n" if metrics[
-                                                                                                         'test_duration_seconds'] > 0 else "  Requests per second: 0.00\n"
-    report += "\n"
-
-    # Phase timing
-    report += "PHASE TIMING:\n"
-    for phase, duration in metrics["operation_phase_times"].items():
-        report += f"  {phase.replace('_', ' ').title()}: {duration:.2f}ms\n"
-    report += "\n"
-
-    # Latency distribution
-    report += "LATENCY DISTRIBUTION:\n"
-    total_latency_count = sum(metrics["latency_distribution"].values())
-    for range_name, count in metrics["latency_distribution"].items():
-        percentage = (count / total_latency_count * 100) if total_latency_count > 0 else 0
-        report += f"  {range_name}: {count} requests ({percentage:.2f}%)\n"
-    report += "\n"
-
-    # Overall percentiles
-    if "overall" in percentiles:
-        report += "OVERALL LATENCY PERCENTILES:\n"
-        report += f"  Median (P50): {percentiles['overall']['median']:.2f}ms\n"
-        report += f"  P90: {percentiles['overall']['p90']:.2f}ms\n"
-        report += f"  P95: {percentiles['overall']['p95']:.2f}ms\n"
-        report += f"  P99: {percentiles['overall']['p99']:.2f}ms\n"
-        report += "\n"
-
-    # Top 5 slowest endpoints
-    endpoint_avg_times = []
-    for key, data in metrics["endpoints"].items():
-        if data["count"] > 0:
-            avg_time = data["total_time"] / data["count"]
-            endpoint_avg_times.append((key, avg_time, data))
-
-    if endpoint_avg_times:
-        endpoint_avg_times.sort(key=lambda x: x[1], reverse=True)
-        top_5_slowest = endpoint_avg_times[:5]
-
-        report += "TOP 5 SLOWEST ENDPOINTS:\n"
-        for key, avg_time, data in top_5_slowest:
-            report += f"  {key}:\n"
-            report += f"    Count: {data['count']}\n"
-            report += f"    Avg time: {avg_time:.2f}ms\n"
-            report += f"    Min time: {data['min']:.2f}ms\n"
-            report += f"    Max time: {data['max']:.2f}ms\n"
-
-            # Add percentiles if available
-            if "endpoints" in percentiles and key in percentiles["endpoints"]:
-                ep_percentiles = percentiles["endpoints"][key]
-                report += f"    Median (P50): {ep_percentiles['median']:.2f}ms\n"
-                report += f"    P90: {ep_percentiles['p90']:.2f}ms\n"
-                report += f"    P95: {ep_percentiles['p95']:.2f}ms\n"
-                report += f"    P99: {ep_percentiles['p99']:.2f}ms\n"
-
-            report += "\n"
-
-    # Status code distribution
-    report += "STATUS CODE DISTRIBUTION:\n"
-    for code, count in sorted(metrics["status_codes"].items()):
-        percentage = (count / total_requests * 100) if total_requests > 0 else 0
-        report += f"  {code}: {count} ({percentage:.2f}%)\n"
-
-    # Add errors (limit to first 10)
-    if metrics["errors"]:
-        report += "\nERRORS (first 10):\n"
-        for err in metrics["errors"][:10]:
-            report += f"  - {err}\n"
-
-        if len(metrics["errors"]) > 10:
-            report += f"  ... and {len(metrics['errors']) - 10} more errors\n"
-
-    report += "\n" + "=" * 80
-
-    return report
-
-
 # === Run Load Test ===
 async def run_load_test():
     metrics["test_start_time"] = datetime.datetime.now()
@@ -588,16 +452,23 @@ async def run_load_test():
             print(f"  ... and {len(metrics['errors']) - 5} more errors")
 
     # === Enhanced Latency Report ===
-    latency_report = generate_latency_report()
+    latency_report = generate_latency_report(metrics)
     print(latency_report)
 
-    # Save the report to a file
+    # Save text and HTML reports
     try:
         timestamp = metrics["test_end_time"].strftime("%Y%m%d_%H%M%S")
-        filename = f"load_test_latency_{timestamp}.log"
-        with open(filename, "w") as f:
+        text_filename = f"load_test_latency_{timestamp}.log"
+        with open(text_filename, "w") as f:
             f.write(latency_report)
-        print(f"\nLatency report saved to {filename}")
+        print(f"\nLatency report saved to {text_filename}")
+
+        percentiles = calculate_latency_percentiles(metrics)
+        html_content = generate_html_report(metrics, percentiles)
+        html_filename = f"load_test_latency_{timestamp}.html"
+        with open(html_filename, "w") as f:
+            f.write(html_content)
+        print(f"HTML report saved to {html_filename}")
     except Exception as e:
         print(f"\nError saving latency report: {str(e)}")
 

@@ -97,6 +97,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: performance-test-results
-          path: performance/api/*.log
+          path: |
+            performance/api/*.log
+            performance/api/*.html
           retention-days: 7
           if-no-files-found: ignore
