@@ -21,6 +21,8 @@ jobs:
   test:
     name: Stage cf-graphdb-app
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,6 +45,27 @@ jobs:
           npm run ci:stage
         env:
           NODE_ENV: stage
+      - name: Attempt to fix vulnerabilities
+        run: npm audit fix
+        working-directory: cf-graphdb-app
+      - name: Check for changes
+        id: git_status
+        run: |
+          git status --porcelain
+          echo "changes=$(git status --porcelain | wc -l)" >> $GITHUB_OUTPUT
+        working-directory: cf-graphdb-app
+      - name: Commit and push changes
+        if: steps.git_status.outputs.changes > 0 && github.event_name == 'push'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json package.json
+          git commit -m "chore(deps): [AUTO] Apply npm audit fixes"
+          git push
+        working-directory: cf-graphdb-app
+      - name: Scan for vulnerabilities
+        run: npm audit
+        working-directory: cf-graphdb-app
       - name: Deploy stage
         run: npm run deploy:stage
         env:
