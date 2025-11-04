@@ -7,3 +7,9 @@
 /cf-graphdb-auth/.vscode/
 /cf-graphdb-auth/.wrangler/
 /cf-graphdb-auth/node_modules/
+/.vscode/
+cf-graphdb-app/.vscode/
+cf-graphdb-app/worker-configuration.d.ts
+cf-graphdb-app/cloudflare-env.d.ts
+performance/api/*.log
+performance/api/*.html
